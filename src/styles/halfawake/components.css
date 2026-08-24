@@ -96,8 +96,8 @@
 #tags { border: 1px solid var(--ha-border); border-radius: var(--ha-radius) !important; background: var(--ha-surface); box-shadow: 0 3px 14px rgb(25 35 50 / 4%); }
 
 .profile-panel { overflow: hidden; }
-.profile-avatar { display: block; aspect-ratio: 16 / 10; overflow: hidden; }
-.profile-avatar > *, .profile-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; }
+.profile-avatar { display: block; aspect-ratio: 1; overflow: hidden; }
+.profile-avatar > *, .profile-avatar img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .profile-copy { padding: 1rem; }
 .profile-copy h2 { margin: 0; font-size: 1.05rem; }
 .profile-copy p { margin: 0.45rem 0 0.8rem; color: var(--ha-muted); font-size: 0.8rem; line-height: 1.6; }

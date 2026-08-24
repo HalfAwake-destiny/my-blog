@@ -6,13 +6,14 @@
 }
 
 .site-header.over-hero {
-  position: absolute;
+  position: sticky;
   width: 100%;
+  background: var(--ha-page-bg);
 }
 
 .home-hero {
   position: relative;
-  height: 52vh;
+  height: clamp(420px, 37.5vw, 620px);
   min-height: 420px;
   max-height: 620px;
   overflow: hidden;
@@ -74,7 +75,7 @@
   right: 0;
   bottom: -1px;
   left: 0;
-  height: 76px;
+  height: 56px;
   color: var(--ha-page-bg);
 }
 
