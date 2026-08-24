@@ -55,10 +55,33 @@ const links = navBarConfig.links as NavBarLink[];
 </nav>
 
 <script>
+	function normalizePath(pathname: string) {
+		const normalized = pathname.replace(/\/+$/, "");
+		return normalized || "/";
+	}
+
+	function updateActiveNav() {
+		const currentPath = normalizePath(window.location.pathname);
+		document.querySelectorAll<HTMLAnchorElement>(".nav-link, .mobile-nav-link").forEach((link) => {
+			const linkPath = normalizePath(new URL(link.href, window.location.href).pathname);
+			const isActive = linkPath === "/"
+				? currentPath === "/"
+				: currentPath === linkPath || currentPath.startsWith(`${linkPath}/`);
+
+			link.classList.toggle("active", isActive);
+			if (isActive) {
+				link.setAttribute("aria-current", "page");
+			} else {
+				link.removeAttribute("aria-current");
+			}
+		});
+	}
+
 	function initNavbar() {
 		const menuButton = document.getElementById("mobile-menu-button");
 		const menu = document.getElementById("mobile-menu");
 		const musicButton = document.getElementById("music-toggle");
+		updateActiveNav();
 		if (menuButton && menu && !menuButton.dataset.ready) {
 			menuButton.dataset.ready = "true";
 			menuButton.addEventListener("click", () => {
