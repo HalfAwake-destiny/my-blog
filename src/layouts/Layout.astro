@@ -1,0 +1,152 @@
+---
+import "@fontsource-variable/jetbrains-mono";
+import "katex/dist/katex.css";
+import "photoswipe/style.css";
+import "../styles/variables.styl";
+import "../styles/main.css";
+import "../styles/markdown.css";
+import "../styles/markdown-extend.styl";
+import "../styles/expressive-code.css";
+import "../styles/halfawake/tokens.css";
+import "../styles/halfawake/base.css";
+import "../styles/halfawake/layout.css";
+import "../styles/halfawake/components.css";
+import "../styles/halfawake/motion.css";
+import "../styles/halfawake/responsive.css";
+
+import ConfigCarrier from "@components/ConfigCarrier.astro";
+import MusicPlayer from "@components/widget/MusicPlayer.svelte";
+import { profileConfig, siteConfig, umamiConfig } from "../config";
+
+interface Props {
+	title?: string;
+	description?: string;
+	lang?: string;
+	setOGTypeArticle?: boolean;
+	postSlug?: string;
+}
+
+const { title, description, lang, setOGTypeArticle, postSlug } = Astro.props;
+const pageTitle = title ? `${title} | ${siteConfig.title}` : `${siteConfig.title} | ${siteConfig.subtitle}`;
+const pageDescription = description || siteConfig.subtitle;
+const siteLang = (lang || siteConfig.lang).replace("_", "-");
+const canonical = new URL(Astro.url.pathname, Astro.site);
+const ogImage = siteConfig.generateOgImages && postSlug
+	? new URL(`/og/${postSlug}.png`, Astro.site)
+	: new URL("/favicon/halfawake-192.png", Astro.site);
+---
+
+<!doctype html>
+<html lang={siteLang}>
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="generator" content={Astro.generator} />
+		<meta name="description" content={pageDescription} />
+		<meta name="author" content={profileConfig.name} />
+		<meta name="theme-color" content="#f5f7fa" />
+		{siteConfig.keywords?.length && <meta name="keywords" content={siteConfig.keywords.join(", ")} />}
+		<title>{pageTitle}</title>
+		<link rel="canonical" href={canonical} />
+		<link rel="icon" href="/favicon/halfawake-32.png" sizes="32x32" />
+		<link rel="apple-touch-icon" href="/favicon/halfawake-192.png" />
+		<link rel="alternate" type="application/rss+xml" title={`${siteConfig.title} RSS`} href="/rss.xml" />
+		<link rel="alternate" type="application/atom+xml" title={`${siteConfig.title} Atom`} href="/atom.xml" />
+
+		<meta property="og:type" content={setOGTypeArticle ? "article" : "website"} />
+		<meta property="og:site_name" content={siteConfig.title} />
+		<meta property="og:title" content={pageTitle} />
+		<meta property="og:description" content={pageDescription} />
+		<meta property="og:url" content={canonical} />
+		<meta property="og:image" content={ogImage} />
+		<meta name="twitter:card" content="summary_large_image" />
+
+		<script is:inline>
+			const storedTheme = localStorage.getItem("theme");
+			const theme = storedTheme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+			document.documentElement.classList.toggle("dark", theme === "dark");
+			document.documentElement.style.setProperty("--hue", "200");
+		</script>
+		<slot name="head" />
+		{umamiConfig.enabled && umamiConfig.scripts && <Fragment set:html={umamiConfig.scripts} />}
+	</head>
+	<body>
+		<ConfigCarrier />
+		<div id="reading-progress" aria-hidden="true"></div>
+		<slot />
+		<MusicPlayer client:load />
+
+		<script>
+			import PhotoSwipe from "photoswipe";
+
+			function initHalfAwakePage() {
+				const progress = document.getElementById("reading-progress");
+				const article = document.getElementById("post-container");
+				const updateProgress = () => {
+					if (!progress || !article) return;
+					const start = article.offsetTop;
+					const max = Math.max(article.offsetHeight - window.innerHeight, 1);
+					const value = Math.min(1, Math.max(0, (window.scrollY - start) / max));
+					progress.style.transform = `scaleX(${value})`;
+				};
+				window.removeEventListener("scroll", updateProgress);
+				window.addEventListener("scroll", updateProgress, { passive: true });
+				progress?.classList.toggle("is-visible", Boolean(article));
+				updateProgress();
+
+				document.querySelectorAll<HTMLElement>(".ha-ripple").forEach((element) => {
+					if (element.dataset.rippleReady) return;
+					element.dataset.rippleReady = "true";
+					element.addEventListener("pointerdown", (event) => {
+						if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+						const rect = element.getBoundingClientRect();
+						const ripple = document.createElement("span");
+						ripple.className = "ha-ripple-ink";
+						ripple.style.left = `${event.clientX - rect.left}px`;
+						ripple.style.top = `${event.clientY - rect.top}px`;
+						element.append(ripple);
+						ripple.addEventListener("animationend", () => ripple.remove(), { once: true });
+					});
+				});
+
+				document.querySelectorAll<HTMLImageElement>(".custom-md img").forEach((img) => {
+					if (img.dataset.lightboxReady) return;
+					img.dataset.lightboxReady = "true";
+					img.addEventListener("click", () => {
+						const viewer = new PhotoSwipe({
+							dataSource: [{
+								src: img.currentSrc || img.src,
+								width: img.naturalWidth || 1600,
+								height: img.naturalHeight || 1000,
+								alt: img.alt,
+							}],
+							index: 0,
+							bgOpacity: 0.92,
+						});
+						viewer.init();
+					});
+				});
+			}
+
+			initHalfAwakePage();
+			document.addEventListener("astro:page-load", initHalfAwakePage);
+			document.addEventListener("swup:contentReplaced", initHalfAwakePage);
+		</script>
+
+		{import.meta.env.PROD && (
+			<script is:inline>
+				(async () => {
+					try {
+						const pagefind = await import("/pagefind/pagefind.js");
+						await pagefind.options({ excerptLength: 24 });
+						window.pagefind = pagefind;
+						document.dispatchEvent(new CustomEvent("pagefindready"));
+					} catch (error) {
+						console.error("Pagefind failed to load", error);
+						document.dispatchEvent(new CustomEvent("pagefindloaderror"));
+					}
+				})();
+			</script>
+		)}
+	</body>
+</html>

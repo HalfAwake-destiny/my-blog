@@ -1,0 +1,86 @@
+---
+import type { MarkdownHeading } from "astro";
+import { Image } from "astro:assets";
+import bannerImage from "../assets/images/halfawake/banner.webp";
+import BackToTop from "../components/control/BackToTop.astro";
+import Footer from "../components/Footer.astro";
+import Navbar from "../components/Navbar.astro";
+import TypewriterText from "../components/TypewriterText.astro";
+import SideBar from "../components/widget/SideBar.astro";
+import TOC from "../components/widget/TOC.astro";
+import { siteConfig } from "../config";
+import Layout from "./Layout.astro";
+
+interface Props {
+	title?: string;
+	banner?: string;
+	description?: string;
+	lang?: string;
+	setOGTypeArticle?: boolean;
+	postSlug?: string;
+	headings?: MarkdownHeading[];
+}
+
+const { title, description, lang, setOGTypeArticle, postSlug, headings = [] } = Astro.props;
+const pathname = Astro.url.pathname;
+const isHomePage = pathname === "/";
+const isPostIndex = pathname === "/posts/" || /^\/\d+\/$/.test(pathname);
+const showSidebar = isHomePage || isPostIndex;
+const showToc = headings.length > 0 && siteConfig.toc.enable;
+---
+
+<Layout title={title} description={description} lang={lang} setOGTypeArticle={setOGTypeArticle} postSlug={postSlug}>
+	<slot slot="head" name="head" />
+	<header class:list={["site-header", { "over-hero": isHomePage }]}>
+		<Navbar hasToc={showToc} />
+	</header>
+
+	{isHomePage && (
+		<section class="home-hero" aria-labelledby="hero-title">
+			<Image src={bannerImage} alt="校园观测台与半醒观测站原创角色" widths={[768, 1200, 1800]} sizes="100vw" loading="eager" />
+			<div class="home-hero-shade"></div>
+			<div class="home-hero-copy">
+				<p class="hero-kicker">HALF AWAKE OBSERVATORY</p>
+				<h1 id="hero-title">{siteConfig.banner.homeText?.title}</h1>
+				<div class="hero-typewriter" aria-live="polite">
+					<TypewriterText
+						text={siteConfig.banner.homeText?.subtitle || siteConfig.subtitle}
+						speed={siteConfig.banner.homeText?.typewriter?.speed}
+						deleteSpeed={siteConfig.banner.homeText?.typewriter?.deleteSpeed}
+						pauseTime={siteConfig.banner.homeText?.typewriter?.pauseTime}
+					/>
+				</div>
+			</div>
+			{siteConfig.banner.waves?.enable && (
+				<div class="hero-waves" aria-hidden="true">
+					<svg viewBox="0 20 150 32" preserveAspectRatio="none">
+						<defs><path id="halfawake-wave" d="M-160 44c30 0 58-18 88-18s58 18 88 18 58-18 88-18 58 18 88 18v48h-352z" /></defs>
+						<g class="wave-parallax">
+							<use href="#halfawake-wave" x="48" y="2" opacity="0.3" />
+							<use href="#halfawake-wave" x="48" y="5" opacity="0.55" />
+							<use href="#halfawake-wave" x="48" y="7" />
+						</g>
+					</svg>
+				</div>
+			)}
+		</section>
+	)}
+
+	<div class:list={["page-shell", { "home-shell": isHomePage, "with-sidebar": showSidebar, "with-toc": showToc }]}>
+		{showSidebar && <aside class="site-sidebar"><SideBar headings={headings} /></aside>}
+		<main id="swup-container" class="site-main transition-swup-fade">
+			<slot />
+		</main>
+		{showToc && (
+			<aside class="article-toc" aria-label="文章目录">
+				<div class="article-toc-inner">
+					<p>本页目录</p>
+					<TOC headings={headings} />
+				</div>
+			</aside>
+		)}
+	</div>
+
+	<Footer />
+	<BackToTop />
+</Layout>

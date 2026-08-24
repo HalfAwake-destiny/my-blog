@@ -1,0 +1,52 @@
+---
+import { Icon } from "astro-icon/components";
+import { formatDateToYYYYMMDD } from "../utils/date-utils";
+import { getCategoryUrl, getTagUrl } from "../utils/url-utils";
+
+export interface Props {
+	published: Date;
+	updated?: Date;
+	category?: string;
+	tags?: string[];
+	hideUpdateDate?: boolean;
+	hideTagsForMobile?: boolean;
+	isHome?: boolean;
+	className?: string;
+	slug?: string;
+	showOnlyBasicMeta?: boolean;
+	words?: number;
+	minutes?: number;
+	showWordCount?: boolean;
+}
+
+const {
+	published,
+	updated,
+	category,
+	tags = [],
+	hideUpdateDate = false,
+	hideTagsForMobile = false,
+	className = "",
+	showOnlyBasicMeta = false,
+	words,
+	minutes,
+	showWordCount = false,
+} = Astro.props;
+---
+
+<div class:list={["post-meta", className]}>
+	<span><Icon name="material-symbols:calendar-today-outline-rounded" />{formatDateToYYYYMMDD(published)}</span>
+	{!hideUpdateDate && updated && updated.getTime() !== published.getTime() && (
+		<span><Icon name="material-symbols:edit-calendar-outline-rounded" />{formatDateToYYYYMMDD(updated)}</span>
+	)}
+	<a href={getCategoryUrl(category || "")}><Icon name="material-symbols:folder-outline-rounded" />{category || "未分类"}</a>
+	{showWordCount && (minutes || words) && (
+		<span><Icon name="material-symbols:schedule-outline-rounded" />{minutes ? `${minutes} 分钟` : `${words} 字`}</span>
+	)}
+	{!showOnlyBasicMeta && tags.length > 0 && (
+		<span class:list={["post-meta-tags", { "hide-tags-mobile": hideTagsForMobile }]}>
+			<Icon name="material-symbols:tag-rounded" />
+			{tags.map((tag) => <a href={getTagUrl(tag)}>{tag}</a>)}
+		</span>
+	)}
+</div>

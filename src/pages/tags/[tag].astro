@@ -1,0 +1,21 @@
+---
+import type { GetStaticPaths } from "astro";
+import { getCollection } from "astro:content";
+import PostPage from "../../components/PostPage.astro";
+import MainGridLayout from "../../layouts/MainGridLayout.astro";
+import { getSortedPosts } from "../../utils/content-utils";
+
+export const getStaticPaths = (async () => {
+	const posts = await getCollection("posts", ({ data }) => !data.draft);
+	const tags = [...new Set(posts.flatMap((post) => post.data.tags))];
+	return tags.map((tag) => ({ params: { tag }, props: { tag } }));
+}) satisfies GetStaticPaths;
+
+const { tag } = Astro.props;
+const posts = (await getSortedPosts()).filter((post) => post.data.tags.includes(tag));
+---
+
+<MainGridLayout title={`标签：${tag}`} description={`带有 ${tag} 标签的文章`}>
+	<header class="section-heading"><p>TAG</p><h1>#{tag}</h1><span>共 {posts.length} 篇文章</span></header>
+	<PostPage page={{ data: posts }} />
+</MainGridLayout>

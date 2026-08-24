@@ -1,0 +1,9 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { commentConfig } from "../../config";
+
+interface Props { post: CollectionEntry<"posts"> }
+const { post: _post } = Astro.props;
+---
+
+{commentConfig.enable && <div id="comments" class="comment-placeholder" aria-label="评论区"></div>}

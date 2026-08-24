@@ -1,0 +1,59 @@
+---
+import type { CollectionEntry } from "astro:content";
+import * as path from "node:path";
+import { Icon } from "astro-icon/components";
+import { getDir, getTagUrl } from "../utils/url-utils";
+import ImageWrapper from "./misc/ImageWrapper.astro";
+import PostMetadata from "./PostMeta.astro";
+
+interface Props {
+	class?: string;
+	entry: CollectionEntry<"posts">;
+	title: string;
+	url: string;
+	published: Date;
+	updated?: Date;
+	tags: string[];
+	category: string | null;
+	image: string;
+	description: string;
+	draft: boolean;
+	pinned?: boolean;
+	style?: string;
+}
+
+const { entry, title, url, published, updated, tags, category, image, description, pinned, style } = Astro.props;
+const className = Astro.props.class;
+const hasCover = Boolean(image);
+const { remarkPluginFrontmatter } = await entry.render();
+---
+
+<article class:list={["post-card ha-ripple", { "has-cover": hasCover }, className]} style={style}>
+	<div class="post-card-copy">
+		<div class="post-card-heading">
+			{pinned && <span class="pinned-label"><Icon name="mdi:pin" />置顶</span>}
+			<h2><a href={url}>{title}</a></h2>
+		</div>
+		<PostMetadata
+			published={published}
+			updated={updated}
+			tags={tags}
+			category={category || ""}
+			hideTagsForMobile={true}
+			hideUpdateDate={true}
+			showOnlyBasicMeta={true}
+			words={remarkPluginFrontmatter.words}
+			minutes={remarkPluginFrontmatter.minutes}
+			showWordCount={true}
+		/>
+		<p class="post-card-description">{description || remarkPluginFrontmatter.excerpt}</p>
+		<div class="post-card-tags">
+			{tags.slice(0, 3).map((tag) => <a href={getTagUrl(tag)}>#{tag.trim()}</a>)}
+		</div>
+	</div>
+	{hasCover && (
+		<a class="post-card-cover" href={url} aria-label={`阅读《${title}》`}>
+			<ImageWrapper src={image} basePath={path.join("content/posts/", getDir(entry.id))} alt={title} />
+		</a>
+	)}
+</article>

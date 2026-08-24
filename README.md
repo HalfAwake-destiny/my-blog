@@ -1,63 +1,40 @@
-# Astro Starter Kit: Blog
+# 半醒观测站
 
-```sh
-npm create astro@latest -- --template blog
+在清醒与幻想之间，记录沿途的微光。
+
+这是半醒观测站的博客源码，基于 Mizuki 6.1.0、Astro 5、Svelte 5 和 Tailwind CSS 3 重构。站点使用单列文章流，保留静态搜索、Markdown 扩展、KaTeX、Mermaid、PhotoSwipe、RSS/Atom、明暗模式和本地音乐播放器。
+
+## 本地开发
+
+环境要求：Node.js 22、pnpm 9.14.4。
+
+```powershell
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev
 ```
 
-> 🧑‍🚀 **Seasoned astronaut?** Delete this file. Have fun!
+创建文章：
 
-Features:
-
-- ✅ Minimal styling (make it your own!)
-- ✅ 100/100 Lighthouse performance
-- ✅ SEO-friendly with canonical URLs and Open Graph data
-- ✅ Sitemap support
-- ✅ RSS Feed support
-- ✅ Markdown & MDX support
-
-## 🚀 Project Structure
-
-Inside of your Astro project, you'll see the following folders and files:
-
-```text
-├── public/
-├── src/
-│   ├── assets/
-│   ├── components/
-│   ├── content/
-│   ├── layouts/
-│   └── pages/
-├── astro.config.mjs
-├── README.md
-├── package.json
-└── tsconfig.json
+```powershell
+corepack pnpm new-post article-name
 ```
 
-Astro looks for `.astro` or `.md` files in the `src/pages/` directory. Each page is exposed as a route based on its file name.
+发布前检查：
 
-There's nothing special about `src/components/`, but that's where we like to put any Astro/React/Vue/Svelte/Preact components.
+```powershell
+corepack pnpm check
+corepack pnpm build
+```
 
-The `src/content/` directory contains "collections" of related Markdown and MDX documents. Use `getCollection()` to retrieve posts from `src/content/blog/`, and type-check your frontmatter using an optional schema. See [Astro's Content Collections docs](https://docs.astro.build/en/guides/content-collections/) to learn more.
+## 配置
 
-Any static assets, like images, can be placed in the `public/` directory.
+站点配置位于 `src/config/`：
 
-## 🧞 Commands
+- `site.ts`：名称、语言、SEO 和横幅
+- `navigation.ts`：主导航
+- `appearance.ts`：侧栏、代码主题和许可协议
+- `profile.ts`：头像、简介和个人链接
+- `music.ts`：本地曲目列表
+- `features.ts`：功能开关
 
-All commands are run from the root of the project, from a terminal:
-
-| Command                   | Action                                           |
-| :------------------------ | :----------------------------------------------- |
-| `npm install`             | Installs dependencies                            |
-| `npm run dev`             | Starts local dev server at `localhost:4321`      |
-| `npm run build`           | Build your production site to `./dist/`          |
-| `npm run preview`         | Preview your build locally, before deploying     |
-| `npm run astro ...`       | Run CLI commands like `astro add`, `astro check` |
-| `npm run astro -- --help` | Get help using the Astro CLI                     |
-
-## 👀 Want to learn more?
-
-Check out [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
-
-## Credit
-
-This theme is based off of the lovely [Bear Blog](https://github.com/HermanMartinus/bearblog/).
+部署到 EdgeOne Pages 时使用 Node.js 22、pnpm 9.14.4，构建命令为 `pnpm build`，输出目录为 `dist`。正式域名通过 `SITE_URL` 环境变量传入。

@@ -1,0 +1,27 @@
+---
+import type { CollectionEntry } from "astro:content";
+import { getPostUrlBySlug } from "../utils/url-utils";
+import PostCard from "./PostCard.astro";
+
+const { page } = Astro.props;
+---
+
+<section id="post-list-container" class="post-list" aria-label="文章列表">
+	{page.data.map((entry: CollectionEntry<"posts">, index: number) => (
+		<PostCard
+			entry={entry}
+			title={entry.data.title}
+			tags={entry.data.tags}
+			category={entry.data.category}
+			published={entry.data.published}
+			updated={entry.data.updated}
+			url={getPostUrlBySlug(entry.slug)}
+			image={entry.data.image}
+			description={entry.data.description}
+			draft={entry.data.draft}
+			pinned={entry.data.pinned}
+			class="onload-animation"
+			style={`animation-delay:${Math.min(index * 45, 240)}ms`}
+		/>
+	))}
+</section>

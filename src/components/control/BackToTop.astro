@@ -1,0 +1,21 @@
+---
+import { Icon } from "astro-icon/components";
+---
+
+<button id="back-to-top" class="back-to-top ha-ripple" type="button" aria-label="返回顶部" title="返回顶部">
+	<Icon name="material-symbols:keyboard-arrow-up-rounded" />
+</button>
+
+<script>
+	function initBackToTop() {
+		const button = document.getElementById("back-to-top");
+		if (!button || button.dataset.ready) return;
+		button.dataset.ready = "true";
+		const update = () => button.classList.toggle("visible", window.scrollY > 500);
+		button.addEventListener("click", () => window.scrollTo({ top: 0, behavior: "smooth" }));
+		window.addEventListener("scroll", update, { passive: true });
+		update();
+	}
+	initBackToTop();
+	document.addEventListener("swup:contentReplaced", initBackToTop);
+</script>

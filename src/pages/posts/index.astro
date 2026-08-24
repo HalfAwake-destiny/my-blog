@@ -1,0 +1,16 @@
+---
+import PostPage from "../../components/PostPage.astro";
+import MainGridLayout from "../../layouts/MainGridLayout.astro";
+import { getSortedPosts } from "../../utils/content-utils";
+
+const posts = await getSortedPosts();
+---
+
+<MainGridLayout title="文章" description="半醒观测站的全部文章">
+	<header class="section-heading">
+		<p>POSTS</p>
+		<h1>全部文章</h1>
+		<span>共 {posts.length} 篇观察记录</span>
+	</header>
+	<PostPage page={{ data: posts }} />
+</MainGridLayout>

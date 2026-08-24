@@ -1,0 +1,17 @@
+---
+import type { MarkdownHeading } from "astro";
+import Categories from "./Categories.astro";
+import Profile from "./Profile.astro";
+import Tags from "./Tags.astro";
+
+interface Props { class?: string; headings?: MarkdownHeading[] }
+const { class: className } = Astro.props;
+---
+
+<div id="sidebar" class:list={["sidebar-stack", className]}>
+	<Profile />
+	<div class="sidebar-sticky">
+		<Categories />
+		<Tags />
+	</div>
+</div>

@@ -1,0 +1,30 @@
+:root {
+  --ha-primary: #45a7c8;
+  --ha-primary-deep: #237d9c;
+  --ha-accent: #eb8fa4;
+  --ha-highlight: #e9b949;
+  --ha-page-bg: #f5f7fa;
+  --ha-surface: #ffffff;
+  --ha-text: #252a35;
+  --ha-muted: #697386;
+  --ha-border: #dfe5ec;
+  --ha-radius-small: 4px;
+  --ha-radius: 8px;
+  --ha-shadow: 0 8px 24px rgb(25 35 50 / 8%);
+  --page-bg: var(--ha-page-bg);
+  --card-bg: var(--ha-surface);
+  --float-panel-bg: var(--ha-surface);
+  --primary: var(--ha-primary);
+  --radius-large: var(--ha-radius);
+  --line-divider: var(--ha-border);
+  --page-width: 76rem;
+}
+
+:root.dark {
+  --ha-page-bg: #191c24;
+  --ha-surface: #222630;
+  --ha-text: #edf1f5;
+  --ha-muted: #a8b1c0;
+  --ha-border: #343a47;
+  --ha-shadow: 0 10px 28px rgb(0 0 0 / 24%);
+}

@@ -1,0 +1,81 @@
+---
+import { Icon } from "astro-icon/components";
+import { navBarConfig, siteConfig } from "../config";
+import type { NavBarLink } from "../types/config";
+import { url } from "../utils/url-utils";
+import LightDarkSwitch from "./LightDarkSwitch.svelte";
+import MobileTOC from "./MobileTOC.svelte";
+import Search from "./Search.svelte";
+
+interface Props { hasToc?: boolean }
+const { hasToc = false } = Astro.props;
+const pathname = Astro.url.pathname;
+const links = navBarConfig.links as NavBarLink[];
+---
+
+<nav id="navbar" aria-label="主导航">
+	<div class="navbar-inner">
+		<a href={url("/")} class="navbar-brand ha-ripple" aria-label={`${siteConfig.title}首页`}>
+			<span class="brand-mark"><Icon name="material-symbols:explore-outline-rounded" /></span>
+			<span class="brand-copy">
+				<strong>{siteConfig.title}</strong>
+				<small>HALF AWAKE</small>
+			</span>
+		</a>
+
+		<div class="desktop-nav">
+			{links.map((link) => (
+				<a class:list={["nav-link ha-ripple", { active: pathname === link.url || (link.url !== "/" && pathname.startsWith(link.url)) }]} href={url(link.url)}>
+					{link.name}
+				</a>
+			))}
+		</div>
+
+		<div class="navbar-tools">
+			<Search client:only="svelte" />
+			{hasToc && <MobileTOC client:only="svelte" />}
+			<button class="icon-button ha-ripple" id="music-toggle" type="button" aria-label="打开音乐播放器" title="音乐">
+				<Icon name="material-symbols:headphones-rounded" />
+			</button>
+			<LightDarkSwitch client:only="svelte" />
+			<button class="icon-button ha-ripple mobile-menu-button" id="mobile-menu-button" type="button" aria-label="打开菜单" aria-expanded="false" aria-controls="mobile-menu">
+				<Icon name="material-symbols:menu-rounded" />
+			</button>
+		</div>
+	</div>
+
+	<div id="mobile-menu" class="mobile-menu" hidden>
+		{links.map((link) => (
+			<a class:list={["mobile-nav-link ha-ripple", { active: pathname === link.url || (link.url !== "/" && pathname.startsWith(link.url)) }]} href={url(link.url)}>
+				{link.icon && <Icon name={link.icon} />}
+				<span>{link.name}</span>
+			</a>
+		))}
+	</div>
+</nav>
+
+<script>
+	function initNavbar() {
+		const menuButton = document.getElementById("mobile-menu-button");
+		const menu = document.getElementById("mobile-menu");
+		const musicButton = document.getElementById("music-toggle");
+		if (menuButton && menu && !menuButton.dataset.ready) {
+			menuButton.dataset.ready = "true";
+			menuButton.addEventListener("click", () => {
+				const opening = menu.hasAttribute("hidden");
+				menu.toggleAttribute("hidden", !opening);
+				menuButton.setAttribute("aria-expanded", String(opening));
+			});
+			menu.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => {
+				menu.setAttribute("hidden", "");
+				menuButton.setAttribute("aria-expanded", "false");
+			}));
+		}
+		if (musicButton && !musicButton.dataset.ready) {
+			musicButton.dataset.ready = "true";
+			musicButton.addEventListener("click", () => window.dispatchEvent(new CustomEvent("halfawake:music-toggle")));
+		}
+	}
+	initNavbar();
+	document.addEventListener("swup:contentReplaced", initNavbar);
+</script>

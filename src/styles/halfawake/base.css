@@ -1,0 +1,46 @@
+html {
+  background: var(--ha-page-bg);
+  color: var(--ha-text);
+  scroll-padding-top: 5.5rem;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--ha-page-bg);
+  color: var(--ha-text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  letter-spacing: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  letter-spacing: 0;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--ha-primary);
+  outline-offset: 2px;
+}
+
+code,
+pre,
+.expressive-code {
+  font-family: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+}
+
+::selection {
+  background: rgb(69 167 200 / 24%);
+}
