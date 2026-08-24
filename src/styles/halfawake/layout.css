@@ -39,7 +39,7 @@
   position: absolute;
   z-index: 2;
   left: max(1.5rem, calc((100vw - 76rem) / 2 + 2rem));
-  bottom: 7rem;
+  bottom: 9rem;
   width: min(42rem, calc(100% - 3rem));
   color: #fff;
   text-shadow: 0 2px 12px rgb(0 0 0 / 45%);
