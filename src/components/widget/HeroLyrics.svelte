@@ -53,11 +53,9 @@
 	$: lyricPath = compact ? COMPACT_PATH : DESKTOP_PATH;
 	$: lineIndex = findLineIndex(lines, visualTime);
 	$: current = lineIndex >= 0 ? lines[lineIndex] : null;
-	$: previous = lineIndex > 0 ? lines[lineIndex - 1] : null;
 	$: lineEnd = current ? (lines[lineIndex + 1]?.time ?? state?.duration ?? current.time + 6) : 0;
 	$: lineProgress = current ? clamp((visualTime - current.time) / Math.max(lineEnd - current.time, 0.4)) : 0;
 	$: currentGlyphs = current ? layoutLine(current.text, reducedMotion ? 0.35 : lineProgress, lyricPath) : [];
-	$: previousGlyphs = !reducedMotion && previous && lineProgress < 0.16 ? layoutLine(previous.text, 0.82 + lineProgress * 1.125, lyricPath) : [];
 
 	async function loadLyrics(path?: string) {
 		const token = ++loadToken;
@@ -110,7 +108,8 @@
 	function layoutLine(text: string, progress: number, path: LyricPath): Glyph[] {
 		const characters = segmentText(text);
 		const movement = lineMovement(progress);
-		let cursor = (compact ? -120 : -170) + movement;
+		// Keep the desktop copy away from the edge while the trace remains on the sill.
+		let cursor = (compact ? -120 : -70) + movement;
 		const opacity = lineOpacity(progress);
 
 		return characters.map((char) => {
@@ -154,12 +153,12 @@
 	function lineMovement(progress: number) {
 		if (progress < 0.14) return 220 * easeOutCubic(progress / 0.14);
 		if (progress < 0.8) return 220 + 135 * ((progress - 0.14) / 0.66);
-		return 355 + 300 * easeInCubic((progress - 0.8) / 0.2);
+		return 355 + 65 * smoothstep((progress - 0.8) / 0.2);
 	}
 
 	function lineOpacity(progress: number) {
 		if (progress < 0.08) return smoothstep(progress / 0.08);
-		if (progress > 0.82) return 1 - smoothstep((progress - 0.82) / 0.18);
+		if (progress > 0.78) return 1 - smoothstep((progress - 0.78) / 0.22);
 		return 1;
 	}
 
@@ -187,7 +186,6 @@
 	function clamp(value: number, min = 0, max = 1) { return Math.min(max, Math.max(min, value)); }
 	function smoothstep(value: number) { const t = clamp(value); return t * t * (3 - 2 * t); }
 	function easeOutCubic(value: number) { return 1 - (1 - clamp(value)) ** 3; }
-	function easeInCubic(value: number) { return clamp(value) ** 3; }
 	function formatTime(value: number) { return Number.isFinite(value) ? Math.floor(value / 60) + ":" + Math.floor(value % 60).toString().padStart(2, "0") : "0:00"; }
 </script>
 
@@ -198,9 +196,6 @@
 			<path class="hero-lyrics-rail" d={lyricPath.data} />
 			<circle class="hero-lyrics-origin" cx={lyricPath.start.x} cy={lyricPath.start.y} r="6" />
 			<text class="hero-lyrics-label" x={lyricPath.start.x + 12} y={lyricPath.start.y - 28}>LYRIC TRACE / {state.track.title.toUpperCase()}</text>
-			{#each previousGlyphs as glyph}
-				<text class="hero-lyrics-glyph is-previous" x="0" y="0" font-size={glyph.fontSize} opacity={glyph.opacity} transform={"translate(" + glyph.x + " " + glyph.y + ") rotate(" + glyph.angle + ") scale(" + glyph.stretch + " 1)"}>{glyph.char}</text>
-			{/each}
 			{#each currentGlyphs as glyph}
 				<text class:accent={glyph.accent} class="hero-lyrics-glyph" x="0" y="0" font-size={glyph.fontSize} opacity={glyph.opacity} transform={"translate(" + glyph.x + " " + glyph.y + ") rotate(" + glyph.angle + ") scale(" + glyph.stretch + " 1)"}>{glyph.char}</text>
 			{/each}
@@ -217,7 +212,6 @@
 	.hero-lyrics-label { fill: rgb(139 211 228 / 78%); font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 500; letter-spacing: 0; paint-order: stroke; stroke: rgb(4 13 21 / 35%); stroke-width: 3px; }
 	.hero-lyrics-glyph { fill: rgb(216 232 236); font-family: "Roboto", "Noto Sans SC", sans-serif; font-weight: 500; paint-order: stroke; stroke: rgb(3 11 18 / 34%); stroke-linejoin: round; stroke-width: 3px; }
 	.hero-lyrics-glyph.accent { fill: rgb(139 211 228); }
-	.hero-lyrics-glyph.is-previous { fill: rgb(164 192 199); }
 	.hero-lyrics-status { position: absolute; bottom: 4.5rem; left: max(1.5rem, calc((100vw - 76rem) / 2 + 2rem)); display: flex; align-items: center; gap: 0.65rem; color: rgb(224 238 242 / 66%); font-family: "JetBrains Mono", monospace; font-size: 0.58rem; letter-spacing: 0.08em; text-shadow: 0 2px 8px rgb(0 0 0 / 50%); }
 	.hero-lyrics-status > i { width: 7rem; height: 1px; background: rgb(230 242 245 / 28%); }
 	.hero-lyrics-status b { display: block; height: 100%; background: var(--ha-primary); }
@@ -225,8 +219,5 @@
 	@media (max-width: 640px) {
 		.hero-lyrics-status { bottom: 3.8rem; left: 1.25rem; right: 1.25rem; font-size: 0.53rem; }
 		.hero-lyrics-status > i { flex: 1; }
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.hero-lyrics-glyph.is-previous { display: none; }
 	}
 </style>
