@@ -218,12 +218,19 @@
 {/if}
 
 <style>
+	@font-face {
+		font-family: "Halfawake Smiley Sans";
+		font-style: normal;
+		font-weight: 400 700;
+		font-display: swap;
+		src: url("/fonts/smiley-sans/smiley-sans-oblique.woff2") format("woff2");
+	}
 	.hero-lyrics { position: absolute; z-index: 4; inset: 0; overflow: hidden; pointer-events: none; }
 	.hero-lyrics-scene { width: 100%; height: 100%; overflow: visible; }
 	.hero-lyrics-rail { fill: none; stroke: rgb(116 200 223 / 52%); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 	.hero-lyrics-origin { fill: var(--ha-accent); }
 	.hero-lyrics-label { fill: rgb(139 211 228 / 78%); font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 500; letter-spacing: 0; paint-order: stroke; stroke: rgb(4 13 21 / 35%); stroke-width: 3px; }
-	.hero-lyrics-glyph { font-family: "Roboto", "Noto Sans SC", sans-serif; font-weight: 500; paint-order: stroke; stroke: rgb(3 11 18 / 34%); stroke-linejoin: round; stroke-width: 3px; }
+	.hero-lyrics-glyph { font-family: "Halfawake Smiley Sans", "Microsoft YaHei", sans-serif; font-weight: 600; paint-order: stroke; stroke: rgb(3 11 18 / 20%); stroke-linejoin: round; stroke-width: 1.4px; filter: drop-shadow(1.2px 0 0 rgb(85 189 213 / 25%)) drop-shadow(0 2px 3px rgb(0 0 0 / 24%)); }
 	.hero-lyrics-status { position: absolute; bottom: 4.5rem; left: max(1.5rem, calc((100vw - 76rem) / 2 + 2rem)); display: flex; align-items: center; gap: 0.65rem; color: rgb(224 238 242 / 66%); font-family: "JetBrains Mono", monospace; font-size: 0.58rem; letter-spacing: 0.08em; text-shadow: 0 2px 8px rgb(0 0 0 / 50%); }
 	.hero-lyrics-status > i { width: 7rem; height: 1px; background: rgb(230 242 245 / 28%); }
 	.hero-lyrics-status b { display: block; height: 100%; background: var(--ha-primary); }
