@@ -2,67 +2,231 @@
 	import { onMount } from "svelte";
 	import { parseLrc, type LyricLine } from "../../utils/lyrics";
 
-	type MusicState = { track?: { id: string; title: string; artist: string; lyric?: string }; currentTime: number; duration: number; playing: boolean };
+	type MusicState = {
+		track?: { id: string; title: string; artist: string; lyric?: string };
+		currentTime: number;
+		duration: number;
+		playing: boolean;
+	};
+
+	type Glyph = {
+		char: string;
+		x: number;
+		y: number;
+		angle: number;
+		fontSize: number;
+		opacity: number;
+		stretch: number;
+		accent: boolean;
+	};
+
+	type LyricPath = {
+		start: { x: number; y: number };
+		control1: { x: number; y: number };
+		control2: { x: number; y: number };
+		end: { x: number; y: number };
+		length: number;
+		data: string;
+	};
+
+	const DESKTOP_PATH: LyricPath = {
+		start: { x: 18, y: 852 }, control1: { x: 260, y: 840 },
+		control2: { x: 570, y: 690 }, end: { x: 980, y: 608 }, length: 995,
+		data: "M 18 852 C 260 840, 570 690, 980 608",
+	};
+	const COMPACT_PATH: LyricPath = {
+		start: { x: 780, y: 765 }, control1: { x: 980, y: 730 },
+		control2: { x: 1210, y: 675 }, end: { x: 1510, y: 640 }, length: 750,
+		data: "M 780 765 C 980 730, 1210 675, 1510 640",
+	};
+
 	let state: MusicState | null = null;
 	let lines: LyricLine[] = [];
-	let lineIndex = -1;
+	let visualTime = 0;
 	let loadToken = 0;
+	let anchorTime = 0;
+	let anchorStamp = 0;
+	let frameId = 0;
+	let reducedMotion = false;
+	let compact = false;
+
+	$: lyricPath = compact ? COMPACT_PATH : DESKTOP_PATH;
+	$: lineIndex = findLineIndex(lines, visualTime);
 	$: current = lineIndex >= 0 ? lines[lineIndex] : null;
-	$: chunks = current?.text.match(/.{1,4}/g) || [];
-	$: lyricProgress = current && lines[lineIndex + 1] ? Math.min(1, Math.max(0, ((state?.currentTime || 0) - current.time) / (lines[lineIndex + 1].time - current.time))) : 0;
+	$: previous = lineIndex > 0 ? lines[lineIndex - 1] : null;
+	$: lineEnd = current ? (lines[lineIndex + 1]?.time ?? state?.duration ?? current.time + 6) : 0;
+	$: lineProgress = current ? clamp((visualTime - current.time) / Math.max(lineEnd - current.time, 0.4)) : 0;
+	$: currentGlyphs = current ? layoutLine(current.text, reducedMotion ? 0.35 : lineProgress, lyricPath) : [];
+	$: previousGlyphs = !reducedMotion && previous && lineProgress < 0.16 ? layoutLine(previous.text, 0.82 + lineProgress * 1.125, lyricPath) : [];
 
 	async function loadLyrics(path?: string) {
 		const token = ++loadToken;
 		lines = [];
-		lineIndex = -1;
 		if (!path) return;
 		try {
 			const response = await fetch(path);
 			if (!response.ok) return;
 			const parsed = parseLrc(await response.text());
-			if (token === loadToken) {
-				lines = parsed;
-				if (state) update(state);
-			}
+			if (token === loadToken) lines = parsed;
 		} catch { /* Lyrics are optional. */ }
 	}
 
-	function update(nextState: MusicState) {
+	function receiveState(nextState: MusicState) {
+		if (nextState.track?.id !== state?.track?.id) loadLyrics(nextState.track?.lyric);
 		state = nextState;
-		lineIndex = lines.findIndex((line, i) => line.time <= nextState.currentTime && (!lines[i + 1] || lines[i + 1].time > nextState.currentTime));
+		anchorTime = nextState.currentTime;
+		anchorStamp = performance.now();
+		visualTime = nextState.currentTime;
+	}
+
+	function animate(now: number) {
+		if (state?.playing && !reducedMotion) {
+			visualTime = Math.min(state.duration || Number.POSITIVE_INFINITY, anchorTime + (now - anchorStamp) / 1000);
+		}
+		frameId = requestAnimationFrame(animate);
 	}
 
 	onMount(() => {
-		const handleState = (event: Event) => {
-			const nextState = (event as CustomEvent<MusicState>).detail;
-			if (nextState.track?.id !== state?.track?.id) loadLyrics(nextState.track?.lyric);
-			update(nextState);
+		const handleState = (event: Event) => receiveState((event as CustomEvent<MusicState>).detail);
+		const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+		const compactQuery = window.matchMedia("(max-width: 640px)");
+		const handleMediaChange = () => {
+			reducedMotion = motionQuery.matches;
+			compact = compactQuery.matches;
 		};
+		handleMediaChange();
+		motionQuery.addEventListener("change", handleMediaChange);
+		compactQuery.addEventListener("change", handleMediaChange);
 		window.addEventListener("halfawake:music-state", handleState);
-		return () => window.removeEventListener("halfawake:music-state", handleState);
+		frameId = requestAnimationFrame(animate);
+		return () => {
+			motionQuery.removeEventListener("change", handleMediaChange);
+			compactQuery.removeEventListener("change", handleMediaChange);
+			window.removeEventListener("halfawake:music-state", handleState);
+			cancelAnimationFrame(frameId);
+		};
 	});
 
-	function formatTime(value: number) { return Number.isFinite(value) ? `${Math.floor(value / 60)}:${Math.floor(value % 60).toString().padStart(2, "0")}` : "0:00"; }
+	function layoutLine(text: string, progress: number, path: LyricPath): Glyph[] {
+		const characters = segmentText(text);
+		const movement = lineMovement(progress);
+		let cursor = (compact ? -120 : -170) + movement;
+		const opacity = lineOpacity(progress);
+
+		return characters.map((char) => {
+			const weight = glyphWeight(char);
+			const distance = cursor;
+			cursor += 44 * weight;
+			const depth = clamp(distance / path.length);
+			const point = pointOnPath(depth, path);
+			const tangent = tangentOnPath(depth, path);
+			const visibility = clamp((distance + 70) / 90) * clamp((path.length + 40 - distance) / 150);
+			const perspective = 1 - 0.24 * smoothstep(depth);
+
+			return {
+				char,
+				x: point.x,
+				y: point.y - 7,
+				angle: Math.atan2(tangent.y, tangent.x) * 180 / Math.PI,
+				fontSize: (compact ? 34 : 42) * perspective,
+				opacity: opacity * visibility * (1 - 0.48 * depth),
+				stretch: 0.94 - 0.06 * depth,
+				accent: depth > 0.08 && depth < 0.2,
+			};
+		});
+	}
+
+	function segmentText(text: string) {
+		if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+			const segmenter = new Intl.Segmenter("zh-CN", { granularity: "grapheme" });
+			return [...segmenter.segment(text)].map((entry) => entry.segment);
+		}
+		return Array.from(text);
+	}
+
+	function glyphWeight(char: string) {
+		if (/\s/.test(char)) return 0.5;
+		if (/[，。！？、；：,.!?;:]/.test(char)) return 0.62;
+		if (/^[\x00-\xff]$/.test(char)) return 0.68;
+		return 1;
+	}
+
+	function lineMovement(progress: number) {
+		if (progress < 0.14) return 220 * easeOutCubic(progress / 0.14);
+		if (progress < 0.8) return 220 + 135 * ((progress - 0.14) / 0.66);
+		return 355 + 300 * easeInCubic((progress - 0.8) / 0.2);
+	}
+
+	function lineOpacity(progress: number) {
+		if (progress < 0.08) return smoothstep(progress / 0.08);
+		if (progress > 0.82) return 1 - smoothstep((progress - 0.82) / 0.18);
+		return 1;
+	}
+
+	function pointOnPath(t: number, path: LyricPath) {
+		const inverse = 1 - t;
+		return {
+			x: inverse ** 3 * path.start.x + 3 * inverse ** 2 * t * path.control1.x + 3 * inverse * t ** 2 * path.control2.x + t ** 3 * path.end.x,
+			y: inverse ** 3 * path.start.y + 3 * inverse ** 2 * t * path.control1.y + 3 * inverse * t ** 2 * path.control2.y + t ** 3 * path.end.y,
+		};
+	}
+
+	function tangentOnPath(t: number, path: LyricPath) {
+		const inverse = 1 - t;
+		return {
+			x: 3 * inverse ** 2 * (path.control1.x - path.start.x) + 6 * inverse * t * (path.control2.x - path.control1.x) + 3 * t ** 2 * (path.end.x - path.control2.x),
+			y: 3 * inverse ** 2 * (path.control1.y - path.start.y) + 6 * inverse * t * (path.control2.y - path.control1.y) + 3 * t ** 2 * (path.end.y - path.control2.y),
+		};
+	}
+
+	function findLineIndex(source: LyricLine[], time: number) {
+		for (let index = source.length - 1; index >= 0; index--) if (source[index].time <= time) return index;
+		return -1;
+	}
+
+	function clamp(value: number, min = 0, max = 1) { return Math.min(max, Math.max(min, value)); }
+	function smoothstep(value: number) { const t = clamp(value); return t * t * (3 - 2 * t); }
+	function easeOutCubic(value: number) { return 1 - (1 - clamp(value)) ** 3; }
+	function easeInCubic(value: number) { return clamp(value) ** 3; }
+	function formatTime(value: number) { return Number.isFinite(value) ? Math.floor(value / 60) + ":" + Math.floor(value % 60).toString().padStart(2, "0") : "0:00"; }
 </script>
 
 {#if state?.track && lines.length && current}
-	<div class="hero-lyrics" aria-live="polite">
-		<div class="hero-lyrics-meta"><span>LYRIC TRACE</span><i></i><span>{state.track.title}</span><span>{String(lineIndex + 1).padStart(2, "0")} / {String(lines.length).padStart(2, "0")}</span></div>
-		<svg class="hero-lyrics-rail" viewBox="0 0 2560 960" preserveAspectRatio="none" aria-hidden="true"><path d="M 28 790 C 260 790, 520 780, 790 758 C 940 746, 1030 739, 1110 731" /></svg>
-		<div class="hero-lyrics-track" style={`--lyric-progress: ${lyricProgress}`}>
-			{#each chunks as chunk, index}<span style={`--depth: ${index / Math.max(chunks.length - 1, 1)}`}>{chunk}</span>{/each}
-		</div>
-		<div class="hero-lyrics-foot"><span>{formatTime(state.currentTime)}</span><b><i style={`width: ${state.duration ? (state.currentTime / state.duration) * 100 : 0}%`}></i></b><span>{formatTime(state.duration)}</span><span>WINDOW EDGE / SYNCED</span></div>
+	<div class="hero-lyrics">
+		<p class="sr-only" aria-live="polite">{current.text}</p>
+		<svg class="hero-lyrics-scene" viewBox="0 0 2560 960" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+			<path class="hero-lyrics-rail" d={lyricPath.data} />
+			<circle class="hero-lyrics-origin" cx={lyricPath.start.x} cy={lyricPath.start.y} r="6" />
+			<text class="hero-lyrics-label" x={lyricPath.start.x + 12} y={lyricPath.start.y - 28}>LYRIC TRACE / {state.track.title.toUpperCase()}</text>
+			{#each previousGlyphs as glyph}
+				<text class="hero-lyrics-glyph is-previous" x="0" y="0" font-size={glyph.fontSize} opacity={glyph.opacity} transform={"translate(" + glyph.x + " " + glyph.y + ") rotate(" + glyph.angle + ") scale(" + glyph.stretch + " 1)"}>{glyph.char}</text>
+			{/each}
+			{#each currentGlyphs as glyph}
+				<text class:accent={glyph.accent} class="hero-lyrics-glyph" x="0" y="0" font-size={glyph.fontSize} opacity={glyph.opacity} transform={"translate(" + glyph.x + " " + glyph.y + ") rotate(" + glyph.angle + ") scale(" + glyph.stretch + " 1)"}>{glyph.char}</text>
+			{/each}
+		</svg>
+		<div class="hero-lyrics-status"><span>{formatTime(visualTime)}</span><i><b style={"width: " + (state.duration ? clamp(visualTime / state.duration) * 100 : 0) + "%"}></b></i><span>{formatTime(state.duration)}</span><span>{String(lineIndex + 1).padStart(2, "0")} / {String(lines.length).padStart(2, "0")}</span></div>
 	</div>
 {/if}
 
 <style>
-	.hero-lyrics { position: absolute; z-index: 4; right: 0; bottom: 5.1rem; left: 0; min-height: 9rem; pointer-events: none; text-shadow: 0 3px 14px rgb(0 0 0 / 52%); }
-	.hero-lyrics-meta, .hero-lyrics-foot { position: absolute; left: max(1.5rem, calc((100vw - 76rem) / 2 + 2rem)); display: flex; align-items: center; gap: 0.75rem; color: rgb(224 238 242 / 72%); font-family: "JetBrains Mono", monospace; font-size: 0.62rem; letter-spacing: 0.1em; }
-	.hero-lyrics-meta { top: 0; color: var(--ha-primary); }.hero-lyrics-meta i { width: 1.5rem; height: 1px; background: currentColor; }
-	.hero-lyrics-rail { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }.hero-lyrics-rail path { fill: none; stroke: rgb(116 200 223 / 68%); stroke-width: 2; }
-	.hero-lyrics-track { position: absolute; top: 1.7rem; left: max(1.5rem, calc((100vw - 76rem) / 2 + 2rem)); display: flex; align-items: baseline; gap: clamp(0.55rem, 1.1vw, 1.3rem); transform: translateX(calc(var(--lyric-progress) * -2.6rem)) rotate(-2.1deg); transform-origin: left bottom; }
-	.hero-lyrics-track span { display: inline-block; color: color-mix(in srgb, #f4fafb calc(100% - (var(--depth) * 45%)), #89adb6 calc(var(--depth) * 45%)); font-size: calc(2.9rem - (var(--depth) * 0.95rem)); font-weight: 750; line-height: 0.95; transform: translateY(calc(var(--depth) * -0.7rem)); }
-	.hero-lyrics-foot { bottom: -0.25rem; }.hero-lyrics-foot b { width: 8rem; height: 2px; background: rgb(230 242 245 / 27%); }.hero-lyrics-foot b i { display: block; height: 100%; background: var(--ha-primary); }
-	@media (max-width: 640px) { .hero-lyrics { bottom: 4.4rem; min-height: 7.5rem; }.hero-lyrics-meta, .hero-lyrics-foot { left: 1.25rem; right: 1.25rem; gap: 0.5rem; font-size: 0.55rem; }.hero-lyrics-track { left: 1.25rem; gap: 0.4rem; }.hero-lyrics-track span { font-size: calc(2rem - (var(--depth) * 0.55rem)); }.hero-lyrics-foot span:last-child { display: none; }.hero-lyrics-foot b { flex: 1; } }
+	.hero-lyrics { position: absolute; z-index: 4; inset: 0; overflow: hidden; pointer-events: none; }
+	.hero-lyrics-scene { width: 100%; height: 100%; overflow: visible; }
+	.hero-lyrics-rail { fill: none; stroke: rgb(116 200 223 / 52%); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+	.hero-lyrics-origin { fill: var(--ha-accent); }
+	.hero-lyrics-label { fill: rgb(139 211 228 / 78%); font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 500; letter-spacing: 0; paint-order: stroke; stroke: rgb(4 13 21 / 35%); stroke-width: 3px; }
+	.hero-lyrics-glyph { fill: rgb(216 232 236); font-family: "Roboto", "Noto Sans SC", sans-serif; font-weight: 500; paint-order: stroke; stroke: rgb(3 11 18 / 34%); stroke-linejoin: round; stroke-width: 3px; }
+	.hero-lyrics-glyph.accent { fill: rgb(139 211 228); }
+	.hero-lyrics-glyph.is-previous { fill: rgb(164 192 199); }
+	.hero-lyrics-status { position: absolute; bottom: 4.5rem; left: max(1.5rem, calc((100vw - 76rem) / 2 + 2rem)); display: flex; align-items: center; gap: 0.65rem; color: rgb(224 238 242 / 66%); font-family: "JetBrains Mono", monospace; font-size: 0.58rem; letter-spacing: 0.08em; text-shadow: 0 2px 8px rgb(0 0 0 / 50%); }
+	.hero-lyrics-status > i { width: 7rem; height: 1px; background: rgb(230 242 245 / 28%); }
+	.hero-lyrics-status b { display: block; height: 100%; background: var(--ha-primary); }
+	.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+	@media (max-width: 640px) {
+		.hero-lyrics-status { bottom: 3.8rem; left: 1.25rem; right: 1.25rem; font-size: 0.53rem; }
+		.hero-lyrics-status > i { flex: 1; }
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.hero-lyrics-glyph.is-previous { display: none; }
+	}
 </style>
