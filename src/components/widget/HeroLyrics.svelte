@@ -17,7 +17,7 @@
 		fontSize: number;
 		opacity: number;
 		stretch: number;
-		accent: boolean;
+		color: string;
 	};
 
 	type LyricPath = {
@@ -127,10 +127,10 @@
 				x: point.x,
 				y: point.y - 7,
 				angle: Math.atan2(tangent.y, tangent.x) * 180 / Math.PI,
-				fontSize: (compact ? 34 : 42) * perspective,
+				fontSize: (compact ? 38 : 47) * perspective,
 				opacity: opacity * visibility * (1 - 0.48 * depth),
 				stretch: 0.94 - 0.06 * depth,
-				accent: depth > 0.08 && depth < 0.2,
+				color: glyphColor(depth),
 			};
 		});
 	}
@@ -160,6 +160,19 @@
 		if (progress < 0.08) return smoothstep(progress / 0.08);
 		if (progress > 0.78) return 1 - smoothstep((progress - 0.78) / 0.22);
 		return 1;
+	}
+
+	function glyphColor(depth: number) {
+		const near = [232, 243, 245];
+		const focus = [139, 211, 228];
+		const far = [130, 153, 161];
+		return depth < 0.18
+			? mixColor(near, focus, smoothstep(depth / 0.18))
+			: mixColor(focus, far, smoothstep((depth - 0.18) / 0.82));
+	}
+
+	function mixColor(from: number[], to: number[], amount: number) {
+		return "rgb(" + from.map((value, index) => Math.round(value + (to[index] - value) * amount)).join(" ") + ")";
 	}
 
 	function pointOnPath(t: number, path: LyricPath) {
@@ -197,7 +210,7 @@
 			<circle class="hero-lyrics-origin" cx={lyricPath.start.x} cy={lyricPath.start.y} r="6" />
 			<text class="hero-lyrics-label" x={lyricPath.start.x + 12} y={lyricPath.start.y - 28}>LYRIC TRACE / {state.track.title.toUpperCase()}</text>
 			{#each currentGlyphs as glyph}
-				<text class:accent={glyph.accent} class="hero-lyrics-glyph" x="0" y="0" font-size={glyph.fontSize} opacity={glyph.opacity} transform={"translate(" + glyph.x + " " + glyph.y + ") rotate(" + glyph.angle + ") scale(" + glyph.stretch + " 1)"}>{glyph.char}</text>
+				<text class="hero-lyrics-glyph" style={"fill: " + glyph.color} x="0" y="0" font-size={glyph.fontSize} opacity={glyph.opacity} transform={"translate(" + glyph.x + " " + glyph.y + ") rotate(" + glyph.angle + ") scale(" + glyph.stretch + " 1)"}>{glyph.char}</text>
 			{/each}
 		</svg>
 		<div class="hero-lyrics-status"><span>{formatTime(visualTime)}</span><i><b style={"width: " + (state.duration ? clamp(visualTime / state.duration) * 100 : 0) + "%"}></b></i><span>{formatTime(state.duration)}</span><span>{String(lineIndex + 1).padStart(2, "0")} / {String(lines.length).padStart(2, "0")}</span></div>
@@ -210,8 +223,7 @@
 	.hero-lyrics-rail { fill: none; stroke: rgb(116 200 223 / 52%); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 	.hero-lyrics-origin { fill: var(--ha-accent); }
 	.hero-lyrics-label { fill: rgb(139 211 228 / 78%); font-family: "JetBrains Mono", monospace; font-size: 10px; font-weight: 500; letter-spacing: 0; paint-order: stroke; stroke: rgb(4 13 21 / 35%); stroke-width: 3px; }
-	.hero-lyrics-glyph { fill: rgb(216 232 236); font-family: "Roboto", "Noto Sans SC", sans-serif; font-weight: 500; paint-order: stroke; stroke: rgb(3 11 18 / 34%); stroke-linejoin: round; stroke-width: 3px; }
-	.hero-lyrics-glyph.accent { fill: rgb(139 211 228); }
+	.hero-lyrics-glyph { font-family: "Roboto", "Noto Sans SC", sans-serif; font-weight: 500; paint-order: stroke; stroke: rgb(3 11 18 / 34%); stroke-linejoin: round; stroke-width: 3px; }
 	.hero-lyrics-status { position: absolute; bottom: 4.5rem; left: max(1.5rem, calc((100vw - 76rem) / 2 + 2rem)); display: flex; align-items: center; gap: 0.65rem; color: rgb(224 238 242 / 66%); font-family: "JetBrains Mono", monospace; font-size: 0.58rem; letter-spacing: 0.08em; text-shadow: 0 2px 8px rgb(0 0 0 / 50%); }
 	.hero-lyrics-status > i { width: 7rem; height: 1px; background: rgb(230 242 245 / 28%); }
 	.hero-lyrics-status b { display: block; height: 100%; background: var(--ha-primary); }
