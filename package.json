@@ -3,9 +3,13 @@
 	"type": "module",
 	"version": "6.1.0",
 	"scripts": {
+		"music:scan": "node scripts/generate-music-manifest.js",
+		"predev": "pnpm music:scan",
 		"dev": "astro dev",
+		"prestart": "pnpm music:scan",
 		"start": "astro dev",
 		"check": "astro check",
+		"prebuild": "pnpm music:scan",
 		"build": "astro build && pagefind --site dist",
 		"preview": "astro preview",
 		"astro": "astro",

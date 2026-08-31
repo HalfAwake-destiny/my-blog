@@ -4,6 +4,7 @@ import { Image } from "astro:assets";
 import bannerImage from "../assets/images/halfawake/banner.webp";
 import BackToTop from "../components/control/BackToTop.astro";
 import Footer from "../components/Footer.astro";
+import HeroLyrics from "../components/widget/HeroLyrics.svelte";
 import Navbar from "../components/Navbar.astro";
 import TypewriterText from "../components/TypewriterText.astro";
 import SideBar from "../components/widget/SideBar.astro";
@@ -51,6 +52,7 @@ const showToc = headings.length > 0 && siteConfig.toc.enable;
 					/>
 				</div>
 			</div>
+			<HeroLyrics client:load />
 			{siteConfig.banner.waves?.enable && (
 				<div class="hero-waves" aria-hidden="true">
 					<svg viewBox="0 20 150 32" preserveAspectRatio="none">

@@ -11,7 +11,7 @@
 	let index = 0;
 	let volume = musicPlayerConfig.defaultVolume;
 	let playMode: "list" | "one" = "list";
-	const tracks: MusicTrack[] = musicPlayerConfig.tracks;
+	const tracks: readonly MusicTrack[] = musicPlayerConfig.tracks;
 	$: track = tracks[index];
 
 	function persist() {
@@ -21,9 +21,10 @@
 	function loadTrack(nextIndex: number, resume = false) {
 		if (!tracks.length || !audio) return;
 		index = (nextIndex + tracks.length) % tracks.length;
-		audio.src = tracks[index].url;
+		audio.src = tracks[index].audio;
 		audio.load();
 		persist();
+		broadcastState(tracks[index]);
 		if (resume) audio.play().catch(() => undefined);
 	}
 
@@ -52,6 +53,10 @@
 		return `${Math.floor(value / 60)}:${Math.floor(value % 60).toString().padStart(2, "0")}`;
 	}
 
+	function broadcastState(trackOverride = track) {
+		window.dispatchEvent(new CustomEvent("halfawake:music-state", { detail: { track: trackOverride, currentTime, duration, playing } }));
+	}
+
 	onMount(() => {
 		try {
 			const saved = JSON.parse(localStorage.getItem("halfawake-music") || "{}");
@@ -61,6 +66,7 @@
 		} catch { /* keep defaults */ }
 		audio.volume = volume;
 		if (track) loadTrack(index);
+		setTimeout(broadcastState, 0);
 		const toggle = () => expanded = !expanded;
 		window.addEventListener("halfawake:music-toggle", toggle);
 		return () => window.removeEventListener("halfawake:music-toggle", toggle);
@@ -107,5 +113,5 @@
 			</div>
 		{/if}
 	</div>
-	<audio bind:this={audio} preload="metadata" on:play={() => playing = true} on:pause={() => playing = false} on:timeupdate={() => currentTime = audio.currentTime} on:durationchange={() => duration = audio.duration || 0} on:ended={() => playMode === "one" ? audio.play() : next()}></audio>
+	<audio bind:this={audio} preload="metadata" on:play={() => { playing = true; broadcastState(); }} on:pause={() => { playing = false; broadcastState(); }} on:timeupdate={() => { currentTime = audio.currentTime; broadcastState(); }} on:durationchange={() => { duration = audio.duration || 0; broadcastState(); }} on:ended={() => playMode === "one" ? audio.play() : next()}></audio>
 {/if}
