@@ -109,7 +109,7 @@
 		const characters = segmentText(text);
 		const movement = lineMovement(progress);
 		// Keep the desktop copy away from the edge while the trace remains on the sill.
-		let cursor = (compact ? -120 : -70) + movement;
+		let cursor = (compact ? -120 : -15) + movement;
 		const opacity = lineOpacity(progress);
 
 		return characters.map((char) => {
