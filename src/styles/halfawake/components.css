@@ -120,7 +120,7 @@
 .ha-ripple { isolation: isolate; overflow: hidden; }
 .ha-ripple-ink { position: absolute; z-index: -1; width: 12px; height: 12px; border-radius: 50%; background: rgb(69 167 200 / 20%); pointer-events: none; transform: translate(-50%, -50%) scale(0); animation: ha-ripple 520ms ease-out forwards; }
 
-.music-player { position: fixed; z-index: 90; right: 1rem; bottom: 1rem; width: 19rem; }
+.music-player { position: fixed; z-index: 90; right: 1rem; bottom: 1rem; width: min(22rem, calc(100vw - 2rem)); }
 .music-compact { display: flex; width: 100%; height: 3.6rem; align-items: center; gap: 0.7rem; padding: 0.45rem; overflow: hidden; border: 1px solid var(--ha-border); border-radius: var(--ha-radius); background: var(--ha-surface); box-shadow: var(--ha-shadow); color: var(--ha-text); text-align: left; }
 .music-open { display: flex; min-width: 0; flex: 1; align-items: center; gap: 0.7rem; text-align: left; }
 .music-cover { display: grid; width: 2.7rem; height: 2.7rem; flex: 0 0 auto; overflow: hidden; place-items: center; border-radius: var(--ha-radius-small); background: rgb(69 167 200 / 12%); color: var(--ha-primary); font-size: 1.5rem; }
@@ -145,6 +145,14 @@
 .music-source-tabs { display: flex; gap: 0.25rem; margin-top: 0.9rem; border-bottom: 1px solid var(--ha-border); }
 .music-source-tabs button { padding: 0.35rem 0.6rem; border-bottom: 2px solid transparent; color: var(--ha-muted); font-size: 0.72rem; }
 .music-source-tabs button.active { border-color: var(--ha-primary); color: var(--ha-primary-deep); }
+.netease-view-tabs { display: grid; grid-template-columns: 1fr 1fr; margin-top: 0.7rem; border: 1px solid var(--ha-border); border-radius: var(--ha-radius-small); background: rgb(127 138 153 / 6%); }
+.netease-view-tabs button { position: relative; display: flex; min-width: 0; height: 2.15rem; align-items: center; justify-content: center; gap: 0.35rem; color: var(--ha-muted); font-size: 0.7rem; }
+.netease-view-tabs button + button { border-left: 1px solid var(--ha-border); }
+.netease-view-tabs button::after { position: absolute; right: 0.65rem; bottom: -1px; left: 0.65rem; height: 2px; background: transparent; content: ""; }
+.netease-view-tabs button.active { background: rgb(69 167 200 / 9%); color: var(--ha-primary-deep); font-weight: 700; }
+.netease-view-tabs button.active::after { background: var(--ha-primary); }
+.netease-view-tabs button span { min-width: 1.15rem; padding: 0.05rem 0.25rem; border-radius: 999px; background: rgb(127 138 153 / 13%); color: var(--ha-muted); font-size: 0.56rem; font-variant-numeric: tabular-nums; text-align: center; }
+.netease-view { display: flex; height: 18rem; min-height: 0; flex-direction: column; overflow: hidden; }
 .netease-login-status { margin: 0.55rem 0 0; color: var(--ha-muted); font-size: 0.68rem; text-align: center; }
 .netease-uid { margin-top: 0.75rem; }
 .netease-uid label { display: block; margin-bottom: 0.3rem; color: var(--ha-muted); font-size: 0.64rem; }
@@ -156,20 +164,21 @@
 .netease-library { margin-top: 0.65rem; }
 .netease-library label { display: block; margin-bottom: 0.3rem; color: var(--ha-muted); font-size: 0.64rem; }
 .netease-library select { width: 100%; border: 1px solid var(--ha-border); border-radius: var(--ha-radius-small); background: var(--ha-surface); color: var(--ha-text); font-size: 0.72rem; padding: 0.42rem 0.5rem; }
-.netease-search { display: flex; gap: 0.4rem; margin-top: 0.75rem; }
+.netease-search { display: flex; flex: 0 0 auto; gap: 0.4rem; margin-top: 0.75rem; }
 .netease-search input { min-width: 0; flex: 1; border: 1px solid var(--ha-border); border-radius: var(--ha-radius-small); background: transparent; color: var(--ha-text); font-size: 0.78rem; padding: 0.45rem 0.55rem; }
 .netease-search button { padding: 0.4rem 0.65rem; border-radius: var(--ha-radius-small); background: var(--ha-primary); color: #fff; font-size: 0.72rem; }
 .netease-search button:disabled { opacity: 0.55; }
-.netease-results { max-height: 11rem; margin-top: 0.55rem; overflow-y: auto; }
-.netease-results > button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--ha-border); text-align: left; }
-.netease-results > button:hover { color: var(--ha-primary-deep); }
+.netease-results { min-height: 0; flex: 1; margin-top: 0.45rem; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.netease-results > button { display: flex; width: 100%; min-height: 3rem; align-items: center; justify-content: space-between; gap: 0.6rem; padding: 0.48rem 0.4rem; border-bottom: 1px solid var(--ha-border); text-align: left; }
+.netease-results > button:hover { background: rgb(69 167 200 / 7%); color: var(--ha-primary-deep); }
+.netease-results > button.current { border-left: 2px solid var(--ha-primary); background: rgb(69 167 200 / 9%); }
 .netease-results span { min-width: 0; }
 .netease-results strong, .netease-results small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .netease-results strong { font-size: 0.75rem; }.netease-results small { margin-top: 0.15rem; color: var(--ha-muted); font-size: 0.65rem; }.netease-results b { flex: 0 0 auto; color: var(--ha-primary); font-size: 0.65rem; font-weight: 600; }
-.netease-section-title { display: flex; align-items: baseline; justify-content: space-between; margin-top: 0.75rem; }
+.netease-section-title { display: flex; flex: 0 0 auto; align-items: baseline; justify-content: space-between; margin-top: 0.7rem; }
 .netease-section-title span { font-size: 0.7rem; font-weight: 700; }
 .netease-section-title small { color: var(--ha-muted); font-size: 0.62rem; }
-.netease-library-tracks { max-height: 9rem; }
+.netease-empty { display: grid; flex: 1; margin: 0; place-items: center; color: var(--ha-muted); font-size: 0.7rem; text-align: center; }
 .music-close { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: var(--ha-radius-small); }
 .music-close span, .music-close span::after { display: block; width: 0.9rem; height: 1.5px; background: currentColor; content: ""; transform: rotate(45deg); }
 .music-close span::after { transform: rotate(90deg); }

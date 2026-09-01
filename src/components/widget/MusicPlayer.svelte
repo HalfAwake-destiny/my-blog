@@ -15,7 +15,9 @@
 	let searchKeyword = "";
 	let searchResults: MusicTrack[] = [];
 	let searching = false;
+	let neteaseView: "library" | "search" = "library";
 	let selectedNetease: MusicTrack[] = [];
+	let neteasePlayRequest = 0;
 	let refreshingNetease = false;
 	let refreshedSourceId = "";
 	let publicUserId = musicPlayerConfig.netease.publicUserId;
@@ -95,6 +97,7 @@
 	async function searchNetease() {
 		const keyword = searchKeyword.trim();
 		if (!keyword || !musicPlayerConfig.netease.enable) return;
+		neteaseView = "search";
 		searching = true;
 		playbackError = "";
 		try {
@@ -109,28 +112,31 @@
 	}
 	async function playNetease(result: MusicTrack) {
 		if (!result.sourceId) return;
+		const requestId = ++neteasePlayRequest;
 		playbackError = "";
 		refreshedSourceId = "";
 		try {
 			const [urlResponse, lyricResponse] = await Promise.all([
-				neteasePost("/song/url/v1", { id: result.sourceId, level: "standard" }),
-				neteasePost("/lyric", { id: result.sourceId }),
+				neteaseRequest("/song/url/v1", { id: result.sourceId, level: "standard" }),
+				neteaseRequest("/lyric", { id: result.sourceId }),
 			]);
 			const urlPayload = await urlResponse.json();
-			const stream = urlPayload?.data?.[0]?.url;
-			if (!stream) throw new Error("unavailable");
+			const streamResult = urlPayload?.data?.[0];
+			const stream = streamResult?.url;
+			if (!urlResponse.ok || String(streamResult?.id) !== result.sourceId || !stream) throw new Error("unavailable");
 			let lyric = "";
 			if (lyricResponse.ok) {
 				const lyricPayload = await lyricResponse.json();
 				lyric = lyricPayload?.lrc?.lyric || "";
 			}
+			if (requestId !== neteasePlayRequest) return;
 			const resolved = { ...result, audio: stream, lyric: lyric ? "data:text/plain;charset=utf-8," + encodeURIComponent(lyric) : "" };
 			selectedNetease = [resolved, ...selectedNetease.filter((item) => item.id !== resolved.id)];
 			index = 0;
 			source = "netease";
 			loadTrack(0, true, selectedNetease);
 		} catch {
-			playbackError = "这首歌暂时无法在线播放，可能受版权或 API 权限限制。";
+			if (requestId === neteasePlayRequest) playbackError = "这首歌暂时无法在线播放，可能受版权或 API 权限限制。";
 		}
 	}
 	function mapNeteaseSong(song: any): MusicTrack {
@@ -144,12 +150,11 @@
 			sourceId: String(song.id),
 		};
 	}
-	function neteasePost(path: string, data: Record<string, unknown> = {}) {
-		return fetch(musicPlayerConfig.netease.apiBaseUrl + path, {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(data),
-		});
+	function neteaseRequest(path: string, data: Record<string, unknown> = {}) {
+		const params = new URLSearchParams();
+		for (const [key, value] of Object.entries(data)) params.set(key, String(value));
+		const query = params.toString();
+		return fetch(musicPlayerConfig.netease.apiBaseUrl + path + (query ? `?${query}` : ""));
 	}
 	async function loadPublicPlaylists() {
 		const uid = publicUserId.trim();
@@ -160,7 +165,7 @@
 		playlistsLoading = true;
 		playbackError = "";
 		try {
-			const response = await neteasePost("/user/playlist", { uid, limit: 50 });
+			const response = await neteaseRequest("/user/playlist", { uid, limit: 50 });
 			const payload = await response.json();
 			if (!response.ok) throw new Error("playlist");
 			userPlaylists = payload?.playlist ?? [];
@@ -179,7 +184,7 @@
 		playlistsLoading = true;
 		playbackError = "";
 		try {
-			const response = await neteasePost("/playlist/track/all", { id: playlist.id, limit: 100 });
+			const response = await neteaseRequest("/playlist/track/all", { id: playlist.id, limit: 100 });
 			const payload = await response.json();
 			if (!response.ok) throw new Error("tracks");
 			playlistTracks = (payload?.songs ?? []).map(mapNeteaseSong);
@@ -211,10 +216,11 @@
 		refreshingNetease = true;
 		const resumeAt = currentTime;
 		try {
-			const response = await neteasePost("/song/url/v1", { id: current.sourceId, level: "standard" });
+			const response = await neteaseRequest("/song/url/v1", { id: current.sourceId, level: "standard" });
 			const payload = await response.json();
-			const stream = payload?.data?.[0]?.url;
-			if (!response.ok || !stream) return false;
+			const streamResult = payload?.data?.[0];
+			const stream = streamResult?.url;
+			if (!response.ok || String(streamResult?.id) !== current.sourceId || !stream) return false;
 			selectedNetease = selectedNetease.map((item) => item.id === current.id ? { ...item, audio: stream } : item);
 			audio.src = stream;
 			audio.addEventListener("loadedmetadata", () => {
@@ -293,26 +299,42 @@
 				</div>
 					<div class="music-source-tabs" role="tablist" aria-label="音乐来源"><button class:active={source === "local"} type="button" on:click={() => selectSource("local")} role="tab" aria-selected={source === "local"}>本地</button><button class:active={source === "netease"} type="button" on:click={() => selectSource("netease")} role="tab" aria-selected={source === "netease"}>网易云</button></div>
 				{#if source === "netease"}
-					<form class="netease-uid" on:submit|preventDefault={loadPublicPlaylists}>
-						<label for="netease-uid">公开歌单 UID</label>
-						<div><input id="netease-uid" bind:value={publicUserId} inputmode="numeric" pattern="[0-9]*" placeholder="输入网易云 UID" /><button type="submit" disabled={playlistsLoading}>{playlistsLoading ? "读取中" : "读取"}</button>{#if publicUserId}<button class="secondary" type="button" on:click={clearPublicUser}>清除</button>{/if}</div>
-					</form>
-					{#if userPlaylists.length}
-						<div class="netease-library">
-							<label for="netease-playlist">公开歌单</label>
-							<select id="netease-playlist" value={selectedPlaylistId} on:change={selectPlaylist} disabled={playlistsLoading}>
-								{#each userPlaylists as playlist}<option value={playlist.id}>{playlist.name} · {playlist.trackCount}</option>{/each}
-							</select>
-						</div>
-					{/if}
-					<form class="netease-search" on:submit|preventDefault={searchNetease}><input bind:value={searchKeyword} placeholder="搜索网易云歌曲" aria-label="搜索网易云歌曲" /><button type="submit" disabled={searching}>{searching ? "搜索中" : "搜索"}</button></form>
-					{#if searchResults.length}<div class="netease-results">{#each searchResults as result}<button type="button" on:click={() => playNetease(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>播放</b></button>{/each}</div>{/if}
-					{#if playlistTracks.length}
-						<div class="netease-section-title"><span>{selectedPlaylistName}</span><small>{playlistTracks.length} 首</small></div>
-						<div class="netease-results netease-library-tracks">{#each playlistTracks as result}<button type="button" on:click={() => playNetease(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>播放</b></button>{/each}</div>
-					{:else if playlistsLoading}
-						<p class="netease-login-status">正在读取公开歌单...</p>
-					{/if}
+					<div class="netease-view-tabs" role="tablist" aria-label="网易云内容">
+						<button class:active={neteaseView === "library"} type="button" on:click={() => neteaseView = "library"} role="tab" aria-selected={neteaseView === "library"}>我的歌单{#if playlistTracks.length}<span>{playlistTracks.length}</span>{/if}</button>
+						<button class:active={neteaseView === "search"} type="button" on:click={() => neteaseView = "search"} role="tab" aria-selected={neteaseView === "search"}>搜索歌曲{#if searchResults.length}<span>{searchResults.length}</span>{/if}</button>
+					</div>
+					<div class="netease-view">
+						{#if neteaseView === "library"}
+							<form class="netease-uid" on:submit|preventDefault={loadPublicPlaylists}>
+								<label for="netease-uid">公开歌单 UID</label>
+								<div><input id="netease-uid" bind:value={publicUserId} inputmode="numeric" pattern="[0-9]*" placeholder="输入网易云 UID" /><button type="submit" disabled={playlistsLoading}>{playlistsLoading ? "读取中" : "读取"}</button>{#if publicUserId}<button class="secondary" type="button" on:click={clearPublicUser}>清除</button>{/if}</div>
+							</form>
+							{#if userPlaylists.length}
+								<div class="netease-library">
+									<label for="netease-playlist">选择歌单</label>
+									<select id="netease-playlist" value={selectedPlaylistId} on:change={selectPlaylist} disabled={playlistsLoading}>
+										{#each userPlaylists as playlist}<option value={playlist.id}>{playlist.name} · {playlist.trackCount}</option>{/each}
+									</select>
+								</div>
+							{/if}
+							{#if playlistTracks.length}
+								<div class="netease-section-title"><span>{selectedPlaylistName}</span><small>{playlistTracks.length} 首</small></div>
+								<div class="netease-results">{#each playlistTracks as result}<button type="button" class:current={activeTrack?.id === result.id} on:click={() => playNetease(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button>{/each}</div>
+							{:else if playlistsLoading}
+								<p class="netease-login-status">正在读取公开歌单...</p>
+							{:else}
+								<p class="netease-empty">读取公开歌单后，歌曲会显示在这里。</p>
+							{/if}
+						{:else}
+							<form class="netease-search" on:submit|preventDefault={searchNetease}><input bind:value={searchKeyword} placeholder="歌曲、歌手或专辑" aria-label="搜索网易云歌曲" /><button type="submit" disabled={searching}>{searching ? "搜索中" : "搜索"}</button></form>
+							{#if searchResults.length}
+								<div class="netease-section-title"><span>搜索结果</span><small>{searchResults.length} 首</small></div>
+								<div class="netease-results">{#each searchResults as result}<button type="button" class:current={activeTrack?.id === result.id} on:click={() => playNetease(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button>{/each}</div>
+							{:else if !searching}
+								<p class="netease-empty">输入关键词，查找想听的歌曲。</p>
+							{/if}
+						{/if}
+					</div>
 				{/if}
 				{#if playbackError}<p class="music-error" role="status">{playbackError}</p>{/if}
 				{#if activeTrack}
@@ -328,8 +350,6 @@
 					</div>
 				{:else if source === "local"}
 					<p class="music-empty">将“歌手 - 歌曲.mp3”和同名歌词放入 <code>public/music</code>，启动或构建站点时会自动扫描。</p>
-				{:else}
-					<p class="music-empty">搜索歌曲并点击结果即可在线播放。</p>
 				{/if}
 			</div>
 		{/if}
