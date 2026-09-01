@@ -153,6 +153,9 @@
 .netease-view-tabs button.active::after { background: var(--ha-primary); }
 .netease-view-tabs button span { min-width: 1.15rem; padding: 0.05rem 0.25rem; border-radius: 999px; background: rgb(127 138 153 / 13%); color: var(--ha-muted); font-size: 0.56rem; font-variant-numeric: tabular-nums; text-align: center; }
 .netease-view { display: flex; height: 18rem; min-height: 0; flex-direction: column; overflow: hidden; }
+.netease-account-line { display: flex; height: 2.65rem; flex: 0 0 auto; align-items: center; justify-content: space-between; margin-top: 0.55rem; border-bottom: 1px solid var(--ha-border); color: var(--ha-muted); font-size: 0.68rem; }
+.netease-account-line button { padding: 0.35rem 0.58rem; border: 1px solid var(--ha-border); border-radius: var(--ha-radius-small); color: var(--ha-primary-deep); font-size: 0.64rem; }
+.netease-account-line button:disabled { opacity: 0.55; }
 .netease-login-status { margin: 0.55rem 0 0; color: var(--ha-muted); font-size: 0.68rem; text-align: center; }
 .netease-uid { margin-top: 0.75rem; }
 .netease-uid label { display: block; margin-bottom: 0.3rem; color: var(--ha-muted); font-size: 0.64rem; }

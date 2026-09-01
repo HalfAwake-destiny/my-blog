@@ -20,7 +20,6 @@
 	let neteasePlayRequest = 0;
 	let refreshingNetease = false;
 	let refreshedSourceId = "";
-	let publicUserId = musicPlayerConfig.netease.publicUserId;
 	let userPlaylists: Array<{ id: number; name: string; coverImgUrl?: string; trackCount: number }> = [];
 	let playlistTracks: MusicTrack[] = [];
 	let selectedPlaylistName = "";
@@ -101,7 +100,7 @@
 		searching = true;
 		playbackError = "";
 		try {
-			const response = await fetch(musicPlayerConfig.netease.apiBaseUrl + "/cloudsearch?keywords=" + encodeURIComponent(keyword));
+			const response = await fetch(musicPlayerConfig.netease.apiBaseUrl + "/halfawake/search?keywords=" + encodeURIComponent(keyword));
 			if (!response.ok) throw new Error("search");
 			const payload = await response.json();
 			const songs = payload?.result?.songs ?? payload?.songs ?? [];
@@ -117,8 +116,8 @@
 		refreshedSourceId = "";
 		try {
 			const [urlResponse, lyricResponse] = await Promise.all([
-				neteaseRequest("/song/url/v1", { id: result.sourceId, level: "standard" }),
-				neteaseRequest("/lyric", { id: result.sourceId }),
+				neteaseRequest("/halfawake/song/url", { id: result.sourceId, level: "standard" }),
+				neteaseRequest("/halfawake/lyric", { id: result.sourceId }),
 			]);
 			const urlPayload = await urlResponse.json();
 			const streamResult = urlPayload?.data?.[0];
@@ -157,25 +156,19 @@
 		return fetch(musicPlayerConfig.netease.apiBaseUrl + path + (query ? `?${query}` : ""));
 	}
 	async function loadPublicPlaylists() {
-		const uid = publicUserId.trim();
-		if (!/^\d+$/.test(uid)) {
-			playbackError = "请输入正确的网易云 UID（仅数字）。";
-			return;
-		}
 		playlistsLoading = true;
 		playbackError = "";
 		try {
-			const response = await neteaseRequest("/user/playlist", { uid, limit: 50 });
+			const response = await neteaseRequest("/halfawake/playlists");
 			const payload = await response.json();
 			if (!response.ok) throw new Error("playlist");
 			userPlaylists = payload?.playlist ?? [];
-			localStorage.setItem("halfawake-netease-uid", uid);
 			if (userPlaylists[0]) await loadPlaylistTracks(userPlaylists[0]);
-			else playbackError = "这个账号没有可公开读取的歌单。";
+			else playbackError = "登录账号中没有可读取的歌单。";
 		} catch {
 			userPlaylists = [];
 			playlistTracks = [];
-			playbackError = "公开歌单加载失败，请检查 UID 或 API 服务。";
+			playbackError = "网易云登录态不可用，请等待站长重新登录。";
 		} finally {
 			playlistsLoading = false;
 		}
@@ -184,7 +177,7 @@
 		playlistsLoading = true;
 		playbackError = "";
 		try {
-			const response = await neteaseRequest("/playlist/track/all", { id: playlist.id, limit: 100 });
+			const response = await neteaseRequest("/halfawake/playlist/tracks", { id: playlist.id, limit: 100 });
 			const payload = await response.json();
 			if (!response.ok) throw new Error("tracks");
 			playlistTracks = (payload?.songs ?? []).map(mapNeteaseSong);
@@ -201,22 +194,13 @@
 		const playlist = userPlaylists.find((item) => item.id === id);
 		if (playlist) loadPlaylistTracks(playlist);
 	}
-	function clearPublicUser() {
-		localStorage.removeItem("halfawake-netease-uid");
-		publicUserId = "";
-		userPlaylists = [];
-		playlistTracks = [];
-		selectedPlaylistName = "";
-		selectedPlaylistId = "";
-		playbackError = "";
-	}
 	async function refreshNeteaseStream() {
 		const current = activeTrack;
 		if (refreshingNetease || source !== "netease" || !current?.sourceId) return false;
 		refreshingNetease = true;
 		const resumeAt = currentTime;
 		try {
-			const response = await neteaseRequest("/song/url/v1", { id: current.sourceId, level: "standard" });
+			const response = await neteaseRequest("/halfawake/song/url", { id: current.sourceId, level: "standard" });
 			const payload = await response.json();
 			const streamResult = payload?.data?.[0];
 			const stream = streamResult?.url;
@@ -268,8 +252,7 @@
 		setTimeout(broadcastState, 0);
 		const toggle = () => expanded = !expanded;
 		window.addEventListener("halfawake:music-toggle", toggle);
-		publicUserId = musicPlayerConfig.netease.publicUserId || localStorage.getItem("halfawake-netease-uid") || "";
-		if (publicUserId) loadPublicPlaylists();
+		if (musicPlayerConfig.netease.enable) loadPublicPlaylists();
 		return () => window.removeEventListener("halfawake:music-toggle", toggle);
 	});
 </script>
@@ -305,10 +288,7 @@
 					</div>
 					<div class="netease-view">
 						{#if neteaseView === "library"}
-							<form class="netease-uid" on:submit|preventDefault={loadPublicPlaylists}>
-								<label for="netease-uid">公开歌单 UID</label>
-								<div><input id="netease-uid" bind:value={publicUserId} inputmode="numeric" pattern="[0-9]*" placeholder="输入网易云 UID" /><button type="submit" disabled={playlistsLoading}>{playlistsLoading ? "读取中" : "读取"}</button>{#if publicUserId}<button class="secondary" type="button" on:click={clearPublicUser}>清除</button>{/if}</div>
-							</form>
+							<div class="netease-account-line"><span>站长的网易云歌单</span><button type="button" on:click={loadPublicPlaylists} disabled={playlistsLoading}>{playlistsLoading ? "同步中" : "同步"}</button></div>
 							{#if userPlaylists.length}
 								<div class="netease-library">
 									<label for="netease-playlist">选择歌单</label>
