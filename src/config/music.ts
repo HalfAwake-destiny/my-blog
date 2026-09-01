@@ -7,6 +7,8 @@ export interface MusicTrack {
 	cover?: string;
 	audio: string;
 	lyric?: string;
+	source?: "local" | "netease";
+	sourceId?: string;
 }
 
 export const musicPlayerConfig = {
@@ -14,4 +16,9 @@ export const musicPlayerConfig = {
 	autoplay: false,
 	defaultVolume: 0.65,
 	tracks: generatedMusicTracks as readonly MusicTrack[],
+	netease: {
+		enable: true,
+		apiBaseUrl: import.meta.env.PUBLIC_NETEASE_API_URL || "http://127.0.0.1:3000",
+		publicUserId: import.meta.env.PUBLIC_NETEASE_UID || "",
+	},
 };

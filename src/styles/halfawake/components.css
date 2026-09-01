@@ -137,11 +137,39 @@
 .music-equalizer { display: flex; height: 1.2rem; align-items: center; gap: 0.16rem; }
 .music-equalizer i { width: 0.14rem; border-radius: 1px; background: currentColor; }
 .music-equalizer i:nth-child(1) { height: 0.55rem; }.music-equalizer i:nth-child(2) { height: 1.05rem; }.music-equalizer i:nth-child(3) { height: 0.75rem; }
-.music-panel { position: absolute; right: 0; bottom: 4.15rem; width: 100%; padding: 1rem; border: 1px solid var(--ha-border); border-radius: var(--ha-radius); background: var(--ha-surface); box-shadow: var(--ha-shadow); }
+.music-panel { position: absolute; right: 0; bottom: 4.15rem; width: 100%; max-height: calc(100vh - 6rem); padding: 1rem; overflow-y: auto; border: 1px solid var(--ha-border); border-radius: var(--ha-radius); background: var(--ha-surface); box-shadow: var(--ha-shadow); }
 .music-panel-head { display: flex; align-items: center; justify-content: space-between; }
 .music-panel-head > div { display: flex; flex-direction: column; }
 .music-panel-head span { color: var(--ha-muted); font-size: 0.68rem; }
 .music-panel-head button { font-size: 1.2rem; }
+.music-source-tabs { display: flex; gap: 0.25rem; margin-top: 0.9rem; border-bottom: 1px solid var(--ha-border); }
+.music-source-tabs button { padding: 0.35rem 0.6rem; border-bottom: 2px solid transparent; color: var(--ha-muted); font-size: 0.72rem; }
+.music-source-tabs button.active { border-color: var(--ha-primary); color: var(--ha-primary-deep); }
+.netease-login-status { margin: 0.55rem 0 0; color: var(--ha-muted); font-size: 0.68rem; text-align: center; }
+.netease-uid { margin-top: 0.75rem; }
+.netease-uid label { display: block; margin-bottom: 0.3rem; color: var(--ha-muted); font-size: 0.64rem; }
+.netease-uid > div { display: flex; gap: 0.4rem; }
+.netease-uid input { min-width: 0; flex: 1; border: 1px solid var(--ha-border); border-radius: var(--ha-radius-small); background: transparent; color: var(--ha-text); font-size: 0.74rem; padding: 0.42rem 0.5rem; }
+.netease-uid button { flex: 0 0 auto; padding: 0.4rem 0.65rem; border-radius: var(--ha-radius-small); background: var(--ha-primary); color: #fff; font-size: 0.68rem; }
+.netease-uid button.secondary { border: 1px solid var(--ha-border); background: transparent; color: var(--ha-muted); }
+.netease-uid button:disabled { opacity: 0.55; }
+.netease-library { margin-top: 0.65rem; }
+.netease-library label { display: block; margin-bottom: 0.3rem; color: var(--ha-muted); font-size: 0.64rem; }
+.netease-library select { width: 100%; border: 1px solid var(--ha-border); border-radius: var(--ha-radius-small); background: var(--ha-surface); color: var(--ha-text); font-size: 0.72rem; padding: 0.42rem 0.5rem; }
+.netease-search { display: flex; gap: 0.4rem; margin-top: 0.75rem; }
+.netease-search input { min-width: 0; flex: 1; border: 1px solid var(--ha-border); border-radius: var(--ha-radius-small); background: transparent; color: var(--ha-text); font-size: 0.78rem; padding: 0.45rem 0.55rem; }
+.netease-search button { padding: 0.4rem 0.65rem; border-radius: var(--ha-radius-small); background: var(--ha-primary); color: #fff; font-size: 0.72rem; }
+.netease-search button:disabled { opacity: 0.55; }
+.netease-results { max-height: 11rem; margin-top: 0.55rem; overflow-y: auto; }
+.netease-results > button { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.25rem; border-bottom: 1px solid var(--ha-border); text-align: left; }
+.netease-results > button:hover { color: var(--ha-primary-deep); }
+.netease-results span { min-width: 0; }
+.netease-results strong, .netease-results small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.netease-results strong { font-size: 0.75rem; }.netease-results small { margin-top: 0.15rem; color: var(--ha-muted); font-size: 0.65rem; }.netease-results b { flex: 0 0 auto; color: var(--ha-primary); font-size: 0.65rem; font-weight: 600; }
+.netease-section-title { display: flex; align-items: baseline; justify-content: space-between; margin-top: 0.75rem; }
+.netease-section-title span { font-size: 0.7rem; font-weight: 700; }
+.netease-section-title small { color: var(--ha-muted); font-size: 0.62rem; }
+.netease-library-tracks { max-height: 9rem; }
 .music-close { display: grid; width: 2rem; height: 2rem; place-items: center; border-radius: var(--ha-radius-small); }
 .music-close span, .music-close span::after { display: block; width: 0.9rem; height: 1.5px; background: currentColor; content: ""; transform: rotate(45deg); }
 .music-close span::after { transform: rotate(90deg); }
