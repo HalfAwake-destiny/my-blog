@@ -5,6 +5,7 @@
 	let audio: HTMLAudioElement;
 	let expanded = false;
 	let source: "local" | "netease" = "local";
+	let viewSource: "local" | "netease" = "local";
 	let playing = false;
 	let currentTime = 0;
 	let duration = 0;
@@ -164,15 +165,18 @@
 	function selectSource(nextSource: "local" | "netease") {
 		// The source may already match while the queue view is open; in that case
 		// the tab click still needs to return to the source browser.
-		if (nextSource === source) {
+		if (nextSource === viewSource && !showQueue) return;
+		viewSource = nextSource;
+		if (nextSource === source && !showQueue) {
+			return;
+		}
+		if (showQueue) {
 			showQueue = false;
 			return;
 		}
 		// Switching the browser tab must not interrupt the independent queue.
-		source = nextSource;
 		searchResults = [];
 		playbackError = "";
-		showQueue = false;
 	}
 	async function searchNetease() {
 		const keyword = searchKeyword.trim();
@@ -220,6 +224,7 @@
 				index = queue.length - 1;
 			}
 			source = "netease";
+			viewSource = "netease";
 			showQueue = false;
 			persist();
 			loadTrack(index, autoplay);
@@ -335,6 +340,15 @@
 		addToQueue([track], insertAt);
 	}
 
+	function playQueueTrack(queueItemIndex: number) {
+		const selected = queue[queueItemIndex];
+		if (!selected) return;
+		index = queueItemIndex;
+		source = selected.source === "netease" ? "netease" : "local";
+		viewSource = source;
+		activateQueueTrack(index, true);
+	}
+
 	function toggleMode() { playMode = playMode === "list" ? "one" : "list"; persist(); }
 	function formatTime(value: number) {
 		if (!Number.isFinite(value)) return "0:00";
@@ -377,7 +391,7 @@
 			</div>
 			<div class="music-summary">
 				<strong>{activeTrack?.title || "待添加曲目"}</strong>
-				<span>{activeTrack?.artist || (source === "netease" ? "网易云音乐" : "本地音乐")}</span>
+					<span>{activeTrack?.artist || (viewSource === "netease" ? "网易云音乐" : "本地音乐")}</span>
 			</div>
 			</button>
 			<button class="music-play" type="button" on:click|stopPropagation={togglePlay} disabled={!activeTrack} aria-label={playing ? "暂停" : "播放"}>
@@ -388,18 +402,18 @@
 		{#if expanded}
 			<div class="music-panel">
 				<div class="music-panel-head">
-					<div><strong>音乐</strong><span>{source === "local" ? tracks.length + " 首本地曲目" : "网易云在线"}</span></div>
+					<div><strong>音乐</strong><span>{viewSource === "local" ? tracks.length + " 首本地曲目" : "网易云在线"}</span></div>
 					<button class="music-close" type="button" on:click={() => expanded = false} aria-label="收起播放器"><span aria-hidden="true"></span></button>
 				</div>
-					<div class="music-source-tabs" role="tablist" aria-label="音乐来源"><button class:active={source === "local" && !showQueue} type="button" on:click={() => selectSource("local")} role="tab" aria-selected={source === "local" && !showQueue}>本地</button><button class:active={source === "netease" && !showQueue} type="button" on:click={() => selectSource("netease")} role="tab" aria-selected={source === "netease" && !showQueue}>网易云</button><button class:active={showQueue} type="button" on:click={() => showQueue = true} role="tab" aria-selected={showQueue}>当前列表{#if queue.length}<span>{queue.length}</span>{/if}</button></div>
+					<div class="music-source-tabs" role="tablist" aria-label="音乐来源"><button class:active={viewSource === "local" && !showQueue} type="button" on:click={() => selectSource("local")} role="tab" aria-selected={viewSource === "local" && !showQueue}>本地</button><button class:active={viewSource === "netease" && !showQueue} type="button" on:click={() => selectSource("netease")} role="tab" aria-selected={viewSource === "netease" && !showQueue}>网易云</button><button class:active={showQueue} type="button" on:click={() => showQueue = true} role="tab" aria-selected={showQueue}>当前列表{#if queue.length}<span>{queue.length}</span>{/if}</button></div>
 				{#if showQueue}
 					<div class="queue-toolbar"><span>当前播放列表</span><button type="button" on:click={clearQueue} disabled={!queue.length}>清空</button></div>
 					{#if queue.length}
-						<div class="netease-results music-queue-list">{#each queue as result, queueItemIndex}<div class:current={index === queueItemIndex} class="music-queue-item"><button class="music-queue-main" type="button" on:click={() => { index = queueItemIndex; source = result.source === "netease" ? "netease" : "local"; activateQueueTrack(index, true); }}><span><strong>{result.title}</strong><small>{result.artist} · {result.source === "netease" ? "网易云" : "本地"}</small></span><b>{index === queueItemIndex && playing ? "播放中" : "播放"}</b></button><button class="music-queue-remove" type="button" on:click={() => removeFromQueue(queueItemIndex)} aria-label={`移除${result.title}`}>×</button></div>{/each}</div>
+						<div class="netease-results music-queue-list">{#each queue as result, queueItemIndex}<div class:current={index === queueItemIndex} class="music-queue-item"><button class="music-queue-main" type="button" on:click={() => playQueueTrack(queueItemIndex)}><span><strong>{result.title}</strong><small>{result.artist} · {result.source === "netease" ? "网易云" : "本地"}</small></span><b>{index === queueItemIndex && playing ? "播放中" : "播放"}</b></button><button class="music-queue-remove" type="button" on:click={() => removeFromQueue(queueItemIndex)} aria-label={`移除${result.title}`}>×</button></div>{/each}</div>
 					{:else}
 						<p class="netease-empty">播放列表为空，请从本地音乐或网易云歌单添加歌曲。</p>
 					{/if}
-				{:else if source === "netease"}
+				{:else if viewSource === "netease"}
 					<div class="netease-view-tabs" role="tablist" aria-label="网易云内容">
 						<button class:active={neteaseView === "library"} type="button" on:click={() => neteaseView = "library"} role="tab" aria-selected={neteaseView === "library"}>我的歌单{#if playlistTracks.length}<span>{playlistTracks.length}</span>{/if}</button>
 						<button class:active={neteaseView === "search"} type="button" on:click={() => neteaseView = "search"} role="tab" aria-selected={neteaseView === "search"}>搜索歌曲{#if searchResults.length}<span>{searchResults.length}</span>{/if}</button>
@@ -447,8 +461,13 @@
 						<button class="music-skip next" type="button" on:click={next} aria-label="下一首"><span aria-hidden="true"></span></button>
 						<span class="volume-control"><span class="music-volume-shape" aria-hidden="true"></span><input type="range" min="0" max="1" step="0.05" value={volume} on:input={setVolume} aria-label="音量" /></span>
 					</div>
-				{:else if source === "local"}
-					<p class="music-empty">将“歌手 - 歌曲.mp3”和同名歌词放入 <code>public/music</code>，启动或构建站点时会自动扫描。</p>
+				{:else if viewSource === "local"}
+					{#if queue.filter((item) => item.source === "local").length}
+						<div class="netease-section-title"><span>本地曲目</span><small>{queue.filter((item) => item.source === "local").length} 首</small></div>
+						<div class="netease-results">{#each queue as result, queueItemIndex}{#if result.source === "local"}<div class:current={activeTrack?.id === result.id} class="netease-result-item"><button class="netease-result-main" type="button" on:click={() => playQueueTrack(queueItemIndex)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button></div>{/if}{/each}</div>
+					{:else}
+						<p class="music-empty">将“歌手 - 歌曲.mp3”和同名歌词放入 <code>public/music</code>，启动或构建站点时会自动扫描。</p>
+					{/if}
 				{/if}
 			</div>
 		{/if}
