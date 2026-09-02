@@ -20,6 +20,7 @@
 	let showQueue = false;
 	let queue: MusicTrack[] = [];
 	let neteasePlayRequest = 0;
+	let playbackGeneration = 0;
 	let refreshingNetease = false;
 	let refreshedSourceId = "";
 	let suppressAudioError = false;
@@ -36,14 +37,23 @@
 			index,
 			volume,
 			playMode,
-			queue: queue.map(({ audio, ...track }) => ({ ...track, audio: track.source === "local" ? audio : "" })),
+			queue: queue.map(({ audio, ...track }) => ({ ...track, audio: track.source !== "netease" ? audio : "" })),
 		}));
 	}
 
 	function loadTrack(nextIndex: number, resume = false) {
 		if (!queue.length || !audio) return;
 		index = (nextIndex + queue.length) % queue.length;
-		audio.src = queue[index].audio;
+		const target = queue[index];
+		if (!target.audio) {
+			playbackError = target.source === "netease"
+				? "网易云播放地址已失效，请重新选择歌曲。"
+				: "本地音频地址缺失，请重新扫描音乐文件。";
+			return;
+		}
+		playbackGeneration += 1;
+		source = target.source === "netease" ? "netease" : "local";
+		audio.src = target.audio;
 		playbackError = "";
 		audio.load();
 		persist();
@@ -73,9 +83,14 @@
 	function removeFromQueue(queueIndex: number) {
 		if (queueIndex < 0 || queueIndex >= queue.length) return;
 		const wasCurrent = queueIndex === index;
-		if (wasCurrent) suppressAudioError = true;
+		if (wasCurrent) {
+			suppressAudioError = true;
+			neteasePlayRequest += 1;
+			playbackGeneration += 1;
+		}
 		queue = queue.filter((_, itemIndex) => itemIndex !== queueIndex);
 		if (!queue.length) {
+			playbackGeneration += 1;
 			index = 0;
 			audio?.pause();
 			audio?.removeAttribute("src");
@@ -94,6 +109,8 @@
 	}
 
 	function clearQueue() {
+		playbackGeneration += 1;
+		neteasePlayRequest += 1;
 		queue = [];
 		index = 0;
 		playing = false;
@@ -293,9 +310,15 @@
 		const playlist = userPlaylists.find((item) => item.id === id);
 		if (playlist) loadPlaylistTracks(playlist);
 	}
-	async function refreshNeteaseStream() {
+	async function refreshNeteaseStream(expectedTrackKey: string, expectedGeneration: number) {
 		const current = activeTrack;
-		if (refreshingNetease || source !== "netease" || !current?.sourceId) return false;
+		if (
+			refreshingNetease ||
+			current?.source !== "netease" ||
+			!current.sourceId ||
+			trackKey(current) !== expectedTrackKey ||
+			playbackGeneration !== expectedGeneration
+		) return false;
 		refreshingNetease = true;
 		const resumeAt = currentTime;
 		try {
@@ -304,7 +327,13 @@
 			const streamResult = payload?.data?.[0];
 			const stream = streamResult?.url;
 			if (!response.ok || String(streamResult?.id) !== current.sourceId || !stream) return false;
+			if (
+				playbackGeneration !== expectedGeneration ||
+				!activeTrack ||
+				trackKey(activeTrack) !== expectedTrackKey
+			) return false;
 			queue = queue.map((item) => item.id === current.id ? { ...item, audio: stream } : item);
+			playbackGeneration += 1;
 			audio.src = stream;
 			audio.addEventListener("loadedmetadata", () => {
 				audio.currentTime = Math.min(resumeAt, audio.duration || resumeAt);
@@ -319,13 +348,23 @@
 		}
 	}
 	async function handleAudioError() {
-		if (suppressAudioError) return;
+		// Clearing an audio element while removing a queue item can emit error;
+		// it is not a failed network or codec request.
+		if (suppressAudioError || !audio?.src || !activeTrack) return;
+		const failedGeneration = playbackGeneration;
+		const failedTrackKey = trackKey(activeTrack);
+		const failedSource = activeTrack.source === "netease" ? "netease" : "local";
 		playing = false;
-		if (activeTrack?.sourceId && refreshedSourceId !== activeTrack.sourceId) {
+		if (failedSource === "netease" && activeTrack.sourceId && refreshedSourceId !== activeTrack.sourceId) {
 			refreshedSourceId = activeTrack.sourceId;
-			if (await refreshNeteaseStream()) return;
+			if (await refreshNeteaseStream(failedTrackKey, failedGeneration)) return;
 		}
-		playbackError = source === "netease"
+		if (
+			failedGeneration !== playbackGeneration ||
+			!activeTrack ||
+			trackKey(activeTrack) !== failedTrackKey
+		) return;
+		playbackError = failedSource === "netease"
 			? "网易云播放地址已失效或当前歌曲不可用，请重新选择歌曲。"
 			: "音频加载失败，请确认 MP3 文件可以正常播放。";
 		broadcastState();
@@ -355,6 +394,19 @@
 		activateQueueTrack(index, true);
 	}
 
+	function playLocalTrack(track: MusicTrack) {
+		const normalized = { ...track, source: "local" as const };
+		let queueIndex = queue.findIndex((item) => trackKey(item) === trackKey(normalized));
+		if (queueIndex < 0) {
+			queue = [...queue, normalized];
+			queueIndex = queue.length - 1;
+		}
+		index = queueIndex;
+		viewSource = "local";
+		showQueue = false;
+		activateQueueTrack(queueIndex, true);
+	}
+
 	function toggleMode() { playMode = playMode === "list" ? "one" : "list"; persist(); }
 	function formatTime(value: number) {
 		if (!Number.isFinite(value)) return "0:00";
@@ -375,9 +427,17 @@
 		audio.volume = volume;
 		try {
 			const saved = JSON.parse(localStorage.getItem("halfawake-music") || "{}");
-			if (Array.isArray(saved.queue)) queue = saved.queue;
+			if (Array.isArray(saved.queue)) {
+				queue = saved.queue.map((item: MusicTrack) => {
+					if (item.source === "netease") return item;
+					const localTrack = tracks.find((track) => track.id === item.id);
+					return localTrack
+						? { ...item, ...localTrack, source: "local", audio: localTrack.audio }
+						: { ...item, source: "local" };
+				});
+			}
 		} catch { /* keep defaults */ }
-		if (!queue.length) queue = [...tracks];
+		if (!queue.length) queue = tracks.map((track) => ({ ...track, source: "local" }));
 		index = Math.min(index, Math.max(queue.length - 1, 0));
 		if (queue.length) loadTrack(index);
 		setTimeout(broadcastState, 0);
@@ -455,6 +515,14 @@
 						{/if}
 					</div>
 				{/if}
+				{#if !showQueue && viewSource === "local"}
+					{#if tracks.length}
+						<div class="netease-section-title"><span>本地曲目</span><small>{tracks.length} 首</small></div>
+						<div class="netease-results">{#each tracks as result}<div class:current={activeTrack?.id === result.id} class="netease-result-item"><button class="netease-result-main" type="button" on:click={() => playLocalTrack(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button></div>{/each}</div>
+					{:else}
+						<p class="music-empty">将“歌手 - 歌曲.mp3”和同名歌词放入 <code>public/music</code>，启动或构建站点时会自动扫描。</p>
+					{/if}
+				{/if}
 				{#if playbackError}<p class="music-error" role="status">{playbackError}</p>{/if}
 				{#if activeTrack}
 					<div class="music-now"><strong>{activeTrack.title}</strong><span>{activeTrack.artist}</span></div>
@@ -467,13 +535,6 @@
 						<button class="music-skip next" type="button" on:click={next} aria-label="下一首"><span aria-hidden="true"></span></button>
 						<span class="volume-control"><span class="music-volume-shape" aria-hidden="true"></span><input type="range" min="0" max="1" step="0.05" value={volume} on:input={setVolume} aria-label="音量" /></span>
 					</div>
-				{:else if viewSource === "local"}
-					{#if queue.filter((item) => item.source === "local").length}
-						<div class="netease-section-title"><span>本地曲目</span><small>{queue.filter((item) => item.source === "local").length} 首</small></div>
-						<div class="netease-results">{#each queue as result, queueItemIndex}{#if result.source === "local"}<div class:current={activeTrack?.id === result.id} class="netease-result-item"><button class="netease-result-main" type="button" on:click={() => playQueueTrack(queueItemIndex)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button></div>{/if}{/each}</div>
-					{:else}
-						<p class="music-empty">将“歌手 - 歌曲.mp3”和同名歌词放入 <code>public/music</code>，启动或构建站点时会自动扫描。</p>
-					{/if}
 				{/if}
 			</div>
 		{/if}
