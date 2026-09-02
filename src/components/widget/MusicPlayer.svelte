@@ -162,8 +162,13 @@
 	function next() { activateQueueTrack(index + 1, playing); }
 	function previous() { activateQueueTrack(index - 1, playing); }
 	function selectSource(nextSource: "local" | "netease") {
-		if (nextSource === source) return;
-		audio?.pause();
+		// The source may already match while the queue view is open; in that case
+		// the tab click still needs to return to the source browser.
+		if (nextSource === source) {
+			showQueue = false;
+			return;
+		}
+		// Switching the browser tab must not interrupt the independent queue.
 		source = nextSource;
 		searchResults = [];
 		playbackError = "";
