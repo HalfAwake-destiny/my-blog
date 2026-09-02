@@ -22,6 +22,7 @@
 	let neteasePlayRequest = 0;
 	let refreshingNetease = false;
 	let refreshedSourceId = "";
+	let suppressAudioError = false;
 	let userPlaylists: Array<{ id: number; name: string; coverImgUrl?: string; trackCount: number }> = [];
 	let playlistTracks: MusicTrack[] = [];
 	let selectedPlaylistName = "";
@@ -72,6 +73,7 @@
 	function removeFromQueue(queueIndex: number) {
 		if (queueIndex < 0 || queueIndex >= queue.length) return;
 		const wasCurrent = queueIndex === index;
+		if (wasCurrent) suppressAudioError = true;
 		queue = queue.filter((_, itemIndex) => itemIndex !== queueIndex);
 		if (!queue.length) {
 			index = 0;
@@ -86,6 +88,7 @@
 			index = Math.min(index, queue.length - 1);
 			activateQueueTrack(index, playing);
 		}
+		if (wasCurrent) setTimeout(() => { suppressAudioError = false; }, 0);
 		persist();
 		broadcastState();
 	}
@@ -94,6 +97,7 @@
 		queue = [];
 		index = 0;
 		playing = false;
+		suppressAudioError = true;
 		audio?.pause();
 		audio?.removeAttribute("src");
 		audio?.load();
@@ -101,6 +105,7 @@
 		duration = 0;
 		persist();
 		broadcastState();
+		setTimeout(() => { suppressAudioError = false; }, 0);
 	}
 
 	function moveQueueItem(from: number, to: number) {
@@ -314,6 +319,7 @@
 		}
 	}
 	async function handleAudioError() {
+		if (suppressAudioError) return;
 		playing = false;
 		if (activeTrack?.sourceId && refreshedSourceId !== activeTrack.sourceId) {
 			refreshedSourceId = activeTrack.sourceId;
