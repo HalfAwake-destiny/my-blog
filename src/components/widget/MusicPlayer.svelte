@@ -16,7 +16,8 @@
 	let searchResults: MusicTrack[] = [];
 	let searching = false;
 	let neteaseView: "library" | "search" = "library";
-	let selectedNetease: MusicTrack[] = [];
+	let showQueue = false;
+	let queue: MusicTrack[] = [];
 	let neteasePlayRequest = 0;
 	let refreshingNetease = false;
 	let refreshedSourceId = "";
@@ -26,23 +27,91 @@
 	let selectedPlaylistId = "";
 	let playlistsLoading = false;
 	const tracks: readonly MusicTrack[] = musicPlayerConfig.tracks;
-	$: track = tracks[index];
-	$: activeTracks = source === "local" ? tracks : selectedNetease;
-	$: activeTrack = source === "local" ? track : selectedNetease[index];
+	$: activeTrack = queue[index];
 
 	function persist() {
-		localStorage.setItem("halfawake-music", JSON.stringify({ index, volume, playMode }));
+		localStorage.setItem("halfawake-music", JSON.stringify({
+			index,
+			volume,
+			playMode,
+			queue: queue.map(({ audio, ...track }) => ({ ...track, audio: track.source === "local" ? audio : "" })),
+		}));
 	}
 
-	function loadTrack(nextIndex: number, resume = false, targetTracks: readonly MusicTrack[] = activeTracks) {
-		if (!targetTracks.length || !audio) return;
-		index = (nextIndex + targetTracks.length) % targetTracks.length;
-		audio.src = targetTracks[index].audio;
+	function loadTrack(nextIndex: number, resume = false) {
+		if (!queue.length || !audio) return;
+		index = (nextIndex + queue.length) % queue.length;
+		audio.src = queue[index].audio;
 		playbackError = "";
 		audio.load();
 		persist();
-		broadcastState(targetTracks[index]);
+		broadcastState(queue[index]);
 		if (resume) playAudio();
+	}
+
+	function trackKey(track: MusicTrack) {
+		return track.source === "netease" ? `netease:${track.sourceId || track.id}` : `local:${track.id}`;
+	}
+
+	function addToQueue(items: MusicTrack[], insertAt?: number) {
+		const existing = new Set(queue.map(trackKey));
+		const additions = items.filter((item) => {
+			const key = trackKey(item);
+			if (existing.has(key)) return false;
+			existing.add(key);
+			return true;
+		});
+		if (!additions.length) return [];
+		if (insertAt === undefined) queue = [...queue, ...additions];
+		else queue = [...queue.slice(0, insertAt), ...additions, ...queue.slice(insertAt)];
+		persist();
+		return additions;
+	}
+
+	function removeFromQueue(queueIndex: number) {
+		if (queueIndex < 0 || queueIndex >= queue.length) return;
+		const wasCurrent = queueIndex === index;
+		queue = queue.filter((_, itemIndex) => itemIndex !== queueIndex);
+		if (!queue.length) {
+			index = 0;
+			audio?.pause();
+			audio?.removeAttribute("src");
+			audio?.load();
+			currentTime = 0;
+			duration = 0;
+		} else if (queueIndex < index) {
+			index -= 1;
+		} else if (wasCurrent) {
+			index = Math.min(index, queue.length - 1);
+			activateQueueTrack(index, playing);
+		}
+		persist();
+		broadcastState();
+	}
+
+	function clearQueue() {
+		queue = [];
+		index = 0;
+		playing = false;
+		audio?.pause();
+		audio?.removeAttribute("src");
+		audio?.load();
+		currentTime = 0;
+		duration = 0;
+		persist();
+		broadcastState();
+	}
+
+	function moveQueueItem(from: number, to: number) {
+		if (from === to || from < 0 || to < 0 || from >= queue.length || to >= queue.length) return;
+		const next = [...queue];
+		const [item] = next.splice(from, 1);
+		next.splice(to, 0, item);
+		if (index === from) index = to;
+		else if (from < index && to >= index) index -= 1;
+		else if (from > index && to <= index) index += 1;
+		queue = next;
+		persist();
 	}
 
 	async function playAudio() {
@@ -59,6 +128,10 @@
 
 	function togglePlay() {
 		if (!activeTrack || !audio) return;
+		if (!audio.src && activeTrack.source === "netease") {
+			playNetease(activeTrack);
+			return;
+		}
 		if (!audio.src) loadTrack(index);
 		playing ? audio.pause() : playAudio();
 	}
@@ -74,24 +147,27 @@
 		persist();
 	}
 
-	function next() { loadTrack(index + 1, playing); }
-	function previous() { loadTrack(index - 1, playing); }
+	function activateQueueTrack(nextIndex: number, resume = false) {
+		if (!queue.length) return;
+		const targetIndex = (nextIndex + queue.length) % queue.length;
+		const target = queue[targetIndex];
+		if (target.source === "netease" && !target.audio) {
+			index = targetIndex;
+			playNetease(target, resume);
+			return;
+		}
+		loadTrack(targetIndex, resume);
+	}
+
+	function next() { activateQueueTrack(index + 1, playing); }
+	function previous() { activateQueueTrack(index - 1, playing); }
 	function selectSource(nextSource: "local" | "netease") {
 		if (nextSource === source) return;
 		audio?.pause();
 		source = nextSource;
-		index = 0;
 		searchResults = [];
 		playbackError = "";
-		if (source === "local") loadTrack(0, false, tracks);
-		else if (selectedNetease.length) loadTrack(0, false, selectedNetease);
-		else if (audio) {
-			audio.removeAttribute("src");
-			audio.load();
-			currentTime = 0;
-			duration = 0;
-			broadcastState();
-		}
+		showQueue = false;
 	}
 	async function searchNetease() {
 		const keyword = searchKeyword.trim();
@@ -109,7 +185,7 @@
 			playbackError = "网易云 API 无法连接，请确认 api-enhanced 正在运行。";
 		} finally { searching = false; }
 	}
-	async function playNetease(result: MusicTrack) {
+	async function playNetease(result: MusicTrack, autoplay = true) {
 		if (!result.sourceId) return;
 		const requestId = ++neteasePlayRequest;
 		playbackError = "";
@@ -130,10 +206,18 @@
 			}
 			if (requestId !== neteasePlayRequest) return;
 			const resolved = { ...result, audio: stream, lyric: lyric ? "data:text/plain;charset=utf-8," + encodeURIComponent(lyric) : "" };
-			selectedNetease = [resolved, ...selectedNetease.filter((item) => item.id !== resolved.id)];
-			index = 0;
+			const existingIndex = queue.findIndex((item) => trackKey(item) === trackKey(result));
+			if (existingIndex >= 0) {
+				queue = queue.map((item, itemIndex) => itemIndex === existingIndex ? resolved : item);
+				index = existingIndex;
+			} else {
+				queue = [...queue, resolved];
+				index = queue.length - 1;
+			}
 			source = "netease";
-			loadTrack(0, true, selectedNetease);
+			showQueue = false;
+			persist();
+			loadTrack(index, autoplay);
 		} catch {
 			if (requestId === neteasePlayRequest) playbackError = "这首歌暂时无法在线播放，可能受版权或 API 权限限制。";
 		}
@@ -205,7 +289,7 @@
 			const streamResult = payload?.data?.[0];
 			const stream = streamResult?.url;
 			if (!response.ok || String(streamResult?.id) !== current.sourceId || !stream) return false;
-			selectedNetease = selectedNetease.map((item) => item.id === current.id ? { ...item, audio: stream } : item);
+			queue = queue.map((item) => item.id === current.id ? { ...item, audio: stream } : item);
 			audio.src = stream;
 			audio.addEventListener("loadedmetadata", () => {
 				audio.currentTime = Math.min(resumeAt, audio.duration || resumeAt);
@@ -230,6 +314,22 @@
 			: "音频加载失败，请确认 MP3 文件可以正常播放。";
 		broadcastState();
 	}
+	function queuePlaylist(mode: "replace" | "append") {
+		const mapped = playlistTracks.map((track) => ({ ...track }));
+		if (mode === "replace") {
+			queue = [];
+			index = 0;
+		}
+		addToQueue(mapped);
+		if (mode === "replace" && queue[0]) playNetease(queue[0]);
+		showQueue = true;
+	}
+
+	function addPlaylistTrack(track: MusicTrack, mode: "append" | "next") {
+		const insertAt = mode === "next" && queue.length ? index + 1 : undefined;
+		addToQueue([track], insertAt);
+	}
+
 	function toggleMode() { playMode = playMode === "list" ? "one" : "list"; persist(); }
 	function formatTime(value: number) {
 		if (!Number.isFinite(value)) return "0:00";
@@ -248,7 +348,13 @@
 			playMode = saved.playMode === "one" ? "one" : "list";
 		} catch { /* keep defaults */ }
 		audio.volume = volume;
-		if (track) loadTrack(index);
+		try {
+			const saved = JSON.parse(localStorage.getItem("halfawake-music") || "{}");
+			if (Array.isArray(saved.queue)) queue = saved.queue;
+		} catch { /* keep defaults */ }
+		if (!queue.length) queue = [...tracks];
+		index = Math.min(index, Math.max(queue.length - 1, 0));
+		if (queue.length) loadTrack(index);
 		setTimeout(broadcastState, 0);
 		const toggle = () => expanded = !expanded;
 		window.addEventListener("halfawake:music-toggle", toggle);
@@ -280,8 +386,15 @@
 					<div><strong>音乐</strong><span>{source === "local" ? tracks.length + " 首本地曲目" : "网易云在线"}</span></div>
 					<button class="music-close" type="button" on:click={() => expanded = false} aria-label="收起播放器"><span aria-hidden="true"></span></button>
 				</div>
-					<div class="music-source-tabs" role="tablist" aria-label="音乐来源"><button class:active={source === "local"} type="button" on:click={() => selectSource("local")} role="tab" aria-selected={source === "local"}>本地</button><button class:active={source === "netease"} type="button" on:click={() => selectSource("netease")} role="tab" aria-selected={source === "netease"}>网易云</button></div>
-				{#if source === "netease"}
+					<div class="music-source-tabs" role="tablist" aria-label="音乐来源"><button class:active={source === "local" && !showQueue} type="button" on:click={() => selectSource("local")} role="tab" aria-selected={source === "local" && !showQueue}>本地</button><button class:active={source === "netease" && !showQueue} type="button" on:click={() => selectSource("netease")} role="tab" aria-selected={source === "netease" && !showQueue}>网易云</button><button class:active={showQueue} type="button" on:click={() => showQueue = true} role="tab" aria-selected={showQueue}>当前列表{#if queue.length}<span>{queue.length}</span>{/if}</button></div>
+				{#if showQueue}
+					<div class="queue-toolbar"><span>当前播放列表</span><button type="button" on:click={clearQueue} disabled={!queue.length}>清空</button></div>
+					{#if queue.length}
+						<div class="netease-results music-queue-list">{#each queue as result, queueItemIndex}<div class:current={index === queueItemIndex} class="music-queue-item"><button class="music-queue-main" type="button" on:click={() => { index = queueItemIndex; source = result.source === "netease" ? "netease" : "local"; activateQueueTrack(index, true); }}><span><strong>{result.title}</strong><small>{result.artist} · {result.source === "netease" ? "网易云" : "本地"}</small></span><b>{index === queueItemIndex && playing ? "播放中" : "播放"}</b></button><button class="music-queue-remove" type="button" on:click={() => removeFromQueue(queueItemIndex)} aria-label={`移除${result.title}`}>×</button></div>{/each}</div>
+					{:else}
+						<p class="netease-empty">播放列表为空，请从本地音乐或网易云歌单添加歌曲。</p>
+					{/if}
+				{:else if source === "netease"}
 					<div class="netease-view-tabs" role="tablist" aria-label="网易云内容">
 						<button class:active={neteaseView === "library"} type="button" on:click={() => neteaseView = "library"} role="tab" aria-selected={neteaseView === "library"}>我的歌单{#if playlistTracks.length}<span>{playlistTracks.length}</span>{/if}</button>
 						<button class:active={neteaseView === "search"} type="button" on:click={() => neteaseView = "search"} role="tab" aria-selected={neteaseView === "search"}>搜索歌曲{#if searchResults.length}<span>{searchResults.length}</span>{/if}</button>
@@ -295,11 +408,12 @@
 									<select id="netease-playlist" value={selectedPlaylistId} on:change={selectPlaylist} disabled={playlistsLoading}>
 										{#each userPlaylists as playlist}<option value={playlist.id}>{playlist.name} · {playlist.trackCount}</option>{/each}
 									</select>
+									<div class="netease-playlist-actions"><button type="button" on:click={() => queuePlaylist("replace")} disabled={!playlistTracks.length || playlistsLoading}>立即播放</button><button type="button" on:click={() => queuePlaylist("append")} disabled={!playlistTracks.length || playlistsLoading}>加入列表</button></div>
 								</div>
 							{/if}
 							{#if playlistTracks.length}
 								<div class="netease-section-title"><span>{selectedPlaylistName}</span><small>{playlistTracks.length} 首</small></div>
-								<div class="netease-results">{#each playlistTracks as result}<button type="button" class:current={activeTrack?.id === result.id} on:click={() => playNetease(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button>{/each}</div>
+								<div class="netease-results">{#each playlistTracks as result}<div class:current={activeTrack?.id === result.id} class="netease-result-item"><button class="netease-result-main" type="button" on:click={() => playNetease(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button><button class="netease-result-add" type="button" on:click={() => addPlaylistTrack(result, "append")} aria-label={`将${result.title}加入列表`}>+</button></div>{/each}</div>
 							{:else if playlistsLoading}
 								<p class="netease-login-status">正在读取公开歌单...</p>
 							{:else}
@@ -309,7 +423,7 @@
 							<form class="netease-search" on:submit|preventDefault={searchNetease}><input bind:value={searchKeyword} placeholder="歌曲、歌手或专辑" aria-label="搜索网易云歌曲" /><button type="submit" disabled={searching}>{searching ? "搜索中" : "搜索"}</button></form>
 							{#if searchResults.length}
 								<div class="netease-section-title"><span>搜索结果</span><small>{searchResults.length} 首</small></div>
-								<div class="netease-results">{#each searchResults as result}<button type="button" class:current={activeTrack?.id === result.id} on:click={() => playNetease(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button>{/each}</div>
+								<div class="netease-results">{#each searchResults as result}<div class:current={activeTrack?.id === result.id} class="netease-result-item"><button class="netease-result-main" type="button" on:click={() => playNetease(result)}><span><strong>{result.title}</strong><small>{result.artist}</small></span><b>{activeTrack?.id === result.id && playing ? "播放中" : "播放"}</b></button><button class="netease-result-add" type="button" on:click={() => addPlaylistTrack(result, "next")} aria-label={`将${result.title}安排为下一首`}>↥</button></div>{/each}</div>
 							{:else if !searching}
 								<p class="netease-empty">输入关键词，查找想听的歌曲。</p>
 							{/if}
